@@ -1,0 +1,61 @@
+syntax = "proto2";
+
+package depolarizer;
+
+message Message
+{
+  enum Command
+  {
+    GET = 0;
+    SET = 1;
+    START = 2;
+    STOP = 3;
+    PAUSE = 4;
+    CONTINUE = 5;
+    INFO = 6;
+  }
+
+  enum DataType
+  {
+    CURRENT = 0; //current frequency
+    INITIAL = 1; //initial frequency
+    FINAL   = 2; //final frequency
+    SPEED   = 3; //frequency speed
+    STEP    = 4; //frequency step
+    ATTENUATION = 5; //attenuation
+    HARMONIC_NUMBER = 6; //harmonic number
+    STATUS = 7;
+    REVOLUTION_FREQUENCY = 8;
+    FMAP = 9;
+  }
+
+  enum Status
+  {
+    OK  = 0;
+    ERROR = 1;
+  }
+
+  message Frequency
+  {
+    required int64 timestamp    = 1;
+    required double frequency   = 2; //depolarizer frequency
+    optional double energy      = 3;
+    optional double attenuation = 4;
+  }
+
+  message FrequencyMap
+  {
+    repeated Frequency frequency = 1;
+  }
+
+  required int32 id                = 1;
+  required int64 timestamp         = 2;
+  optional int32 respond_id        = 3;
+  optional int64 respond_timestamp = 4;
+  required Command command         = 5;
+  optional DataType data_type      = 6;
+  optional double data             = 7;
+  optional FrequencyMap fmap       = 8;
+  optional Status status           = 9 [ default = OK ];
+  optional string error_str        =10;
+}
