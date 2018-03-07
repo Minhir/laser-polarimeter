@@ -78,16 +78,19 @@ class Depolarizer:
         self.send(m)
         m = self.receive()
         return m.data
-    #
-    # def set(self, data_type, data):
-    #     m = Message()
-    #     m.id = 1234
-    #     m.command = Message.SET
-    #     m.data_type = data_type
-    #     m.data = data
-    #     self.send(m)
-    #     m = self.receive()
-    #     return m.data
+
+    def get_state(self):
+      return self.get(Message.STATE)
+
+    def is_off(self):
+      return  not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
+
+    def is_on(self):
+      return self.get_state() == Message.ON or self.get_state() == Message.SCAN
+
+    def is_scan(self):
+      return self.get_state() == Message.SCAN
+      
 
     def get_initial(self):
         return self.get(Message.INITIAL)
