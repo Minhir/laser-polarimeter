@@ -4,7 +4,7 @@ from config import config
 from threading import Lock
 import time
 
-from depolarizer import depolarizer
+# from depolarizer import depolarizer
 
 chunk = np.dtype([('time', np.float64), ('pol', np.int32),
                   ('x_online', np.float32), ('y_online', np.float32),
@@ -25,6 +25,7 @@ class ChunkStorage:
         """
         self.buffer_len = buffer_len
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
+        self.start_time = None
 
     def add(self, chunk_list):
         """
@@ -36,31 +37,34 @@ class ChunkStorage:
             for i in chunk_list:
                 self.data_.append(np.array(i, dtype=chunk))
 
-    def get(self):
-        with lock:
-            return np.array(self.data_)
+        if self.start_time is None and len(self.data_) != 0:
+            self.start_time = self.data_[0]['time']
 
-    def get_from(self, index):
-        """
-        Выдаёт данные с места index. Считает index так, как если бы это не был
-        циклический буффер.
+    # def get(self):
+    #     with lock:
+    #         return np.array(self.data_)
 
-        Пример: длина буфера 10, а мы записали 15 чисел 1..15, тогда реально
-        в буфере находятся 6..15. Но по обращению к 15 мы получим 15 элемент.
-
-        :return:
-        """
-        # TODO сделать аккуратно
-        with lock:
-            new_index = index % self.buffer_len
-            if self.data_.is_full:
-                if new_index <= self.data_._left_index:
-                    return self.data_._arr[new_index:self.data_._left_index]
-                else:
-                    return np.concatenate((self.data_._arr[new_index:],
-                                           self.data_._arr[:self.data_._left_index]))
-            else:
-                return self.data_[new_index:]
+    # def get_from(self, index):
+    #     """
+    #     Выдаёт данные с места index. Считает index так, как если бы это не был
+    #     циклический буффер.
+    #
+    #     Пример: длина буфера 10, а мы записали 15 чисел 1..15, тогда реально
+    #     в буфере находятся 6..15. Но по обращению к 15 мы получим 15 элемент.
+    #
+    #     :return:
+    #     """
+    #     # TODO сделать аккуратно
+    #     with lock:
+    #         new_index = index % self.buffer_len
+    #         if self.data_.is_full:
+    #             if new_index <= self.data_._left_index:
+    #                 return self.data_._arr[new_index:self.data_._left_index]
+    #             else:
+    #                 return np.concatenate((self.data_._arr[new_index:],
+    #                                        self.data_._arr[:self.data_._left_index]))
+    #         else:
+    #             return self.data_[new_index:]
 
     def get_mean_from(self, last_time, period):
         points = {'x_online': [], 'y_online': [],
@@ -80,24 +84,23 @@ class ChunkStorage:
                 # TODO: избавиться от O(n). (а надо ли?)
                 # ind_ = (last_time < self.data_['time']) & (self.data_['time'] < last_time + period)
 
-                ind_ = np.abs(self.data_['time'] - last_time - period / 2) < period / 2
-                len_ = np.sum(ind_)
+                data = self.data_[np.abs(self.data_['time'] - last_time - period / 2) < period / 2]
 
-                if len_ == 0:
+                if len(data) == 0:
                     last_time += period
                     continue
 
-                y_mean = np.mean(self.data_['y_online'][ind_])
-                y_std = np.std(self.data_['x_online'][ind_]) / len(self.data_['x_online'][ind_])**0.5
-                points['x_online'].append(np.mean(self.data_['x_online'][ind_]))
+                y_mean = np.mean(data['y_online'])
+                y_std = np.std(data['x_online']) / len(data['x_online'])**0.5
+                points['x_online'].append(np.mean(data['x_online']))
                 points['y_online'].append(y_mean)
 
                 points['online_error_lower'].append(y_mean - y_std)
                 points['online_error_upper'].append(y_mean + y_std)
 
-                mean_time = np.mean(self.data_['time'][ind_])
-                points['time'].append(mean_time)
-                last_time = self.data_['time'][ind_][-1]
+                mean_time = np.mean(data['time'])
+                points['time'].append(mean_time - self.start_time)
+                last_time = data['time'][-1]
 
                 # подшивка точки деполяризатора
 
@@ -115,11 +118,13 @@ class ChunkStorage:
                 #
                 # else:
                 #     points['depol_freq'].append(-1)
-                points['depol_freq'].append(-1)
-                # подшивка
+                points['depol_freq'].append('-1')
+                # подшивка точки деполяризатора
 
             a.append(time.time() - t)
             print(np.mean(a))   # замер времени. Удалить.
+            print(len(self.data_) / self.data_.maxlen)
+
         return points, last_time
 
 
