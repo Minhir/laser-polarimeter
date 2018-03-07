@@ -27,12 +27,20 @@ message Message
     STATUS = 7;
     REVOLUTION_FREQUENCY = 8;
     FMAP = 9;
+    STATE = 10;
   }
 
   enum Status
   {
     OK  = 0;
     ERROR = 1;
+  }
+
+  enum State
+  {
+    OFF = 0;
+    ON = 1;
+    SCAN = 2;
   }
 
   message Frequency
@@ -59,3 +67,4 @@ message Message
   optional Status status           = 9 [ default = OK ];
   optional string error_str        =10;
 }
+
