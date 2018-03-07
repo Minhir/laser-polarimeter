@@ -160,7 +160,7 @@ class Depolarizer:
         self.fmap_thread.join()
 
     def clear_fmap(self):
-        self.fmap = {}
+        self.fmap.clear()
 
     def print_fmap(self):
         for t in sorted(self.fmap):
