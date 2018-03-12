@@ -1,3 +1,4 @@
+import bisect
 import numpy_ringbuffer as ringbuffer
 import numpy as np
 from config import config
@@ -11,8 +12,6 @@ chunk = np.dtype([('time', np.float64), ('pol', np.int32),
                   ('x_cog', np.float32), ('y_cog', np.float32)])  # ID, I_e, detector
 
 lock = Lock()
-
-a = []
 
 
 class ChunkStorage:
@@ -35,7 +34,7 @@ class ChunkStorage:
 
         with lock:
             for i in chunk_list:
-                self.data_.append(np.array(i, dtype=chunk))
+                self.data_.append(np.array(i, dtype=chunk))     # TODO: проверить неубывание
 
         if self.start_time is None and len(self.data_) != 0:
             self.start_time = self.data_[0]['time']
@@ -71,59 +70,64 @@ class ChunkStorage:
                   'online_error_lower': [], 'online_error_upper': [],
                   'time': [], 'depol_freq': []}
 
-        with lock:
+        t = time.time()
 
+        with lock:
             if len(self.data_) == 0:
                 return points, last_time
 
-            if last_time == 0:
-                last_time = np.min(self.data_['time'])
+            data_ = self.data_
 
-            t = time.time()
-            while last_time + period < self.data_['time'][-1]:
-                # TODO: избавиться от O(n). (а надо ли?)
-                # ind_ = (last_time < self.data_['time']) & (self.data_['time'] < last_time + period)
+        time_ = data_['time']
 
-                data = self.data_[np.abs(self.data_['time'] - last_time - period / 2) < period / 2]
+        if last_time == 0:
+            last_time = time_[0]
 
-                if len(data) == 0:
-                    last_time += period
-                    continue
+        while last_time + period < time_[-1]:
+            # TODO: избавиться от O(n). (а надо ли?)
 
-                y_mean = np.mean(data['y_online'])
-                y_std = np.std(data['x_online']) / len(data['x_online'])**0.5
-                points['x_online'].append(np.mean(data['x_online']))
-                points['y_online'].append(y_mean)
+            left = bisect.bisect_right(time_, last_time)
+            right = bisect.bisect_right(time_, last_time + period)
 
-                points['online_error_lower'].append(y_mean - y_std)
-                points['online_error_upper'].append(y_mean + y_std)
+            if left == right:
+                last_time += period
+                continue
 
-                mean_time = np.mean(data['time'])
-                points['time'].append(mean_time - self.start_time)
-                last_time = data['time'][-1]
+            data = data_[left:right]
 
-                # подшивка точки деполяризатора
+            y_mean = np.mean(data['y_online'])
+            y_std = np.std(data['x_online']) / len(data['x_online'])**0.5
+            points['x_online'].append(np.mean(data['x_online']))
+            points['y_online'].append(y_mean)
 
-                # if True:   # TODO спрашивать состояние деполяризатора
-                #     def find_closest():
-                #         closest = float('inf')
-                #         key = -1
-                #         for k in depolarizer.fmap.keys():
-                #             if abs(k - mean_time) < closest:
-                #                 closest = abs(k - mean_time)
-                #                 key = k
-                #         return key
-                #
-                #     points['depol_freq'].append(find_closest())
-                #
-                # else:
-                #     points['depol_freq'].append(-1)
-                points['depol_freq'].append('-1')
-                # подшивка точки деполяризатора
+            points['online_error_lower'].append(y_mean - y_std)
+            points['online_error_upper'].append(y_mean + y_std)
 
-            a.append(time.time() - t)
-            print(np.mean(a))   # замер времени. Удалить.
-            print(len(self.data_) / self.data_.maxlen)
+            mean_time = np.mean(data['time'])
+            points['time'].append(mean_time - self.start_time)
+            last_time = data['time'][-1]
+
+            # подшивка точки деполяризатора
+
+            # if True:   # TODO спрашивать состояние деполяризатора
+            #     def find_closest():
+            #         closest = float('inf')
+            #         key = -1
+            #         for k in depolarizer.fmap.keys():
+            #             if abs(k - mean_time) < closest:
+            #                 closest = abs(k - mean_time)
+            #                 key = k
+            #         return key
+            #
+            #     points['depol_freq'].append(find_closest())
+            #
+            # else:
+            #     points['depol_freq'].append(-1)
+            points['depol_freq'].append('-1')
+            # подшивка точки деполяризатора
+
+        print(time.time() - t) # замер времени. Удалить.
+        print(f"{100 * len(self.data_) / self.data_.maxlen} %")
 
         return points, last_time
 
