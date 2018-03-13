@@ -24,6 +24,7 @@ def receive(sock):
 
 
 class Depolarizer:
+    
 
     def __init__(self, host, port):
         self.host = host
@@ -33,6 +34,8 @@ class Depolarizer:
         self.message_id = 0
         self.is_fmap = False
         self.fmap = {}
+        self._RD = 440.6484586602595
+        self._F0 = 818924.144144
 
     def send(self, message):
         send(self.sock, message)
@@ -168,6 +171,12 @@ class Depolarizer:
         for t in sorted(self.fmap):
             print(str(t) + str(self.fmap[t]))
 
+    def frequency_to_energy(f, f0, n):
+        return (f/f0+n)*self._RD
+
+    def energy_to_frequency(E, f0, n):
+        return (E/RD-n)*f0
+        
 
 depolarizer = Depolarizer('192.168.176.61', 9090)
 depolarizer.start_fmap()
