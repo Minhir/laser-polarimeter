@@ -80,17 +80,16 @@ class Depolarizer:
         return m.data
 
     def get_state(self):
-      return self.get(Message.STATE)
+        return self.get(Message.STATE)
 
     def is_off(self):
-      return  not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
+        return  not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
 
     def is_on(self):
-      return self.get_state() == Message.ON or self.get_state() == Message.SCAN
+        return self.get_state() == Message.ON or self.get_state() == Message.SCAN
 
     def is_scan(self):
-      return self.get_state() == Message.SCAN
-      
+        return self.get_state() == Message.SCAN
 
     def get_initial(self):
         return self.get(Message.INITIAL)
@@ -171,3 +170,4 @@ class Depolarizer:
 
 
 depolarizer = Depolarizer('192.168.176.61', 9090)
+depolarizer.start_fmap()
