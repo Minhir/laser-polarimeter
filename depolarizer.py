@@ -147,7 +147,7 @@ class Depolarizer:
             while self.is_fmap:
                 m = receive(sock)
                 for fm in m.fmap.frequency:
-                    self.fmap[fm.timestamp] = fm.frequency
+                    self.fmap[fm.timestamp*1e-9] = fm.frequency
         self.is_fmap = False
 
     def start_fmap(self):
