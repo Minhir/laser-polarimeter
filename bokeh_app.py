@@ -2,13 +2,15 @@ from functools import partial
 
 from bokeh.layouts import row, column, layout
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, Range1d, CategoricalAxis, FactorRange, LinearAxis
-from bokeh.models.widgets import RangeSlider, Slider, Div, Button
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis
+from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs
 
 import numpy as np
 from tornado import gen
 
-from data_storage import hist_storage_, data_storage_
+from math import pi
+from data_storage import hist_storage_, data_storage_, names
+from depolarizer import depolarizer
 from config import config
 
 
@@ -35,32 +37,28 @@ def app(doc):
     # TODO выделение точки
 
     asym_fig = figure(plot_width=960, plot_height=400) # , x_range=[0, 10], y_range=[0, 10])
-    asym_data_names = ['x_online', 'y_online', 'online_error_lower', 'online_error_upper', 'time', 'depol_freq']
 
-    asym_source = ColumnDataSource({'x_online': [], 'y_online': [],
-                                    'online_error_lower': [], 'online_error_upper': [],
-                                    'time': [], 'depol_freq': []})
+    asym_source = ColumnDataSource({key: [] for key in names})
 
     # asym_fig.extra_x_ranges["depolarizer"] = FactorRange("c", 'f')
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
 
     asym_fig.add_layout(Whisker(source=asym_source, base="time",
-                                upper="online_error_upper", lower="online_error_lower"))
+                                upper="y_online_l_up_error", lower="y_online_l_down_error"))  # TODO: сделать усы
 
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    asym_fig.circle('time', 'y_online', source=asym_source, size=8, color="black")
+    asym_fig.circle('time', 'y_online_l', source=asym_source, size=8, color="black")
 
     asym_fig.yaxis[0].axis_label = "<y> [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
     asym_fig.xaxis[1].axis_label = 'Частота деполяризатора'
-    # asym_fig.xaxis[1].major_label_overrides = {}
-
-
-    asym_slider = Slider(start=1, end=10, value=1, step=1, title="Время усреднения")
-    params = {'last_time': 0, 'period': 1}
-    depol_dict = {}
+    asym_fig.xaxis[1].major_label_orientation = pi / 2  # 0.52
     depol_list = []
+    asym_fig.xaxis[1].major_label_overrides = {}
+
+    asym_slider = Slider(start=1, end=300, value=100, step=1, title="Время усреднения")
+    params = {'last_time': 0, 'period': 1}
 
     # 'x_start': 10**10, 'x_end': 0}
 
@@ -69,20 +67,27 @@ def app(doc):
     def asym_update():
 
         if params['period'] != asym_slider.value:
-            asym_source.data = {name: [] for name in asym_data_names}
+            asym_source.data = {name: [] for name in names}
             params['period'] = asym_slider.value
             params['last_time'] = 0
+            # asym_fig.xaxis[1].ticker.ticks.clear()
+            depol_list.clear()
 
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
 
-        for i in range(len(points['time'])):
-            depol_dict[int(points['time'][i])] = points['depol_freq'][i]
-            depol_list.append(int(points['time'][i]))
+        for i, time in enumerate(points['time']):
+            if points['depol_freq'][i] == "0.000":
+                continue
+            asym_fig.xaxis[1].major_label_overrides[time] = points['depol_freq'][i]
+            depol_list.append(time)
 
-        asym_source.stream(points, rollover=10000)
-        asym_fig.xaxis[1].major_label_overrides = depol_dict
         asym_fig.xaxis[1].ticker = depol_list
+        asym_source.stream(points, rollover=10000)
         # doc.add_next_tick_callback(partial(asym_plot, points))
+
+    # Вкладки графика
+    # tab1 = Panel(child=asym_fig, title="Y")
+    # tabs = Tabs(tabs=[tab1, tab2])
 
     # Окно статуса деполяризатора
 
@@ -90,24 +95,66 @@ def app(doc):
     Выключен""",
               width=200, height=100)
 
-    depol_button = Button(label="Включить деполяризатор", button_type="success")
+    depol_button_start = Button(label="Включить сканирование", width=200)
+    depol_button_stop = Button(label="Выключить сканирование", width=200)
+
+    depol_input_speed = TextInput(value=str(depolarizer.get_speed()), title="Скорость:")
+    depol_input_step = TextInput(value=str(depolarizer.get_step()), title="Шаг:")
+    depol_input_initial = TextInput(value=str(depolarizer.get_initial()), title="Начало:")
+    depol_input_final = TextInput(value=str(depolarizer.get_final()), title="Конец:")
+
+    def update_depol_status():
+        if depolarizer.is_scan():
+            depol_button_start .button_type = "success"
+            depol_button_stop.button_type = "danger"
+        else:
+            depol_button_start .button_type = "danger"
+            depol_button_stop.button_type = "success"
+
+        try:
+            depol_speed = float(depol_input_speed.value)    # TODO: добавить проверку. Обновлять значние. Раз в секунду.
+
+            if abs(depol_speed) < 1000:
+                depolarizer.set_speed(depol_speed)
+            else:
+                raise ValueError("Некорректное значение скорости")
+
+            depol_step = float(depol_input_step.value)
+            depolarizer.set_step(depol_step)
+
+            depol_init = float(depol_input_initial.value)
+            depolarizer.set_initial(depol_init)
+
+            depol_final = float(depol_input_final.value)
+            depolarizer.set_final(depol_final)
+
+        except ValueError as e:
+            print(e)
+
+    def start_scan():
+        depolarizer.start_scan()
+
+    def stop_scan():
+        depolarizer.stop_scan()
+
+    depol_button_start.on_click(start_scan)
+    depol_button_stop.on_click(stop_scan)
+
+    # TODO: Вводить: скорость, шаг, начало, конец, диапазон (пересчёт начало/конец), ожидаемая энергия
 
     # Инициализация bokeh app
 
-    layout_ = layout([[hist_fig], [hist_slider], [asym_fig], [asym_slider], [depol_button, depol_status_window]])
+    layout_ = layout([
+        [hist_fig],
+        [hist_slider],
+        [asym_fig],
+        [asym_slider],
+        [depol_button_start, depol_button_stop],
+        [depol_input_speed, depol_input_step, depol_input_initial, depol_input_final],
+        [depol_status_window]
+    ])
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
     doc.add_periodic_callback(asym_update, 1000)         # TODO: подобрать периоды
+    doc.add_periodic_callback(update_depol_status, 1000)
     doc.title = "Laser polarimeter"
-
-
-'''
-def run_app(doc):
-
-
-    layout = column(p)
-
-    doc.add_root(layout)
-    doc.add_periodic_callback(update, 1000)
-    doc.title = "Selection Histogram"
-    '''

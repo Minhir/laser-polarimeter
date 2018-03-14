@@ -9,14 +9,14 @@ from threading import Thread
 
 def send(sock, message):
     message.timestamp = int(time.time()*1e9)
-    sock.send(struct.pack('I',message.ByteSize()))
+    sock.send(struct.pack('I', message.ByteSize()))
     sock.send(message.SerializeToString())
 
 
 def receive(sock):
     data = sock.recv(4)
-    s = struct.unpack('I',data)
-    #print "message size = ",s[0]
+    s = struct.unpack('I', data)
+    # print "message size = ",s[0]
     data = sock.recv(s[0])
     m = Message()
     m.ParseFromString(data)
@@ -24,16 +24,16 @@ def receive(sock):
 
 
 class Depolarizer:
-    
 
     def __init__(self, host, port):
         self.host = host
         self.port = port
         self.sock = socket.socket()
         self.sock.connect((host, port))
+        self.fmap_thread = None
         self.message_id = 0
         self.is_fmap = False
-        self.fmap = {}
+        self.fmap = []
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
@@ -61,7 +61,7 @@ class Depolarizer:
     def continue_scan(self):
         return self.do(Message.CONTINUE)
 
-    def get(self,data_type):
+    def get(self, data_type):
         m = Message()
         m.id = self.message_id
         self.message_id = self.message_id + 1
@@ -86,7 +86,7 @@ class Depolarizer:
         return self.get(Message.STATE)
 
     def is_off(self):
-        return  not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
+        return not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
 
     def is_on(self):
         return self.get_state() == Message.ON or self.get_state() == Message.SCAN
@@ -128,13 +128,13 @@ class Depolarizer:
         return self.set(Message.SPEED, data)
 
     def set_attenuation(self, data):
-        return self.set(Message.ATTENUATION,data)
+        return self.set(Message.ATTENUATION, data)
 
     def set_harmonic_number(self, data):
-        return self.set(Message.HARMONIC_NUMBER,data)
+        return self.set(Message.HARMONIC_NUMBER, data)
 
     def set_revolution_frequency(self, data):
-        return self.set(Message.REVOLUTION_FREQUENCY,data)
+        return self.set(Message.REVOLUTION_FREQUENCY, data)
 
     def get_fmap_in_thread(self):
         sock = socket.socket()
@@ -144,13 +144,13 @@ class Depolarizer:
         m.id = mid
         m.command = Message.GET
         m.data_type = Message.FMAP
-        send(sock,m)
+        send(sock, m)
         m = receive(sock)
         if m.status == Message.OK:
             while self.is_fmap:
                 m = receive(sock)
                 for fm in m.fmap.frequency:
-                    self.fmap[fm.timestamp*1e-9] = fm.frequency
+                    self.fmap.append((fm.timestamp*1e-9, fm.frequency))
         self.is_fmap = False
 
     def start_fmap(self):
@@ -161,6 +161,8 @@ class Depolarizer:
             print("fmap tread started")
 
     def stop_fmap(self):
+        if self.fmap_thread is None:
+            print("Fmap thread not started!")
         self.is_fmap = False
         self.fmap_thread.join()
 
@@ -168,14 +170,14 @@ class Depolarizer:
         self.fmap.clear()
 
     def print_fmap(self):
-        for t in sorted(self.fmap):
-            print(str(t) + str(self.fmap[t]))
+        for time_, freq in self.fmap:
+            print(f"{time_} {freq}")
 
-    def frequency_to_energy(f, f0, n):
-        return (f/f0+n)*self._RD
+    def frequency_to_energy(self, f, f0, n):
+        return (f / f0 + n) * self._RD
 
-    def energy_to_frequency(E, f0, n):
-        return (E/RD-n)*f0
+    def energy_to_frequency(self, E, f0, n):
+        return (E / self._RD-n) * f0
         
 
 depolarizer = Depolarizer('192.168.176.61', 9090)

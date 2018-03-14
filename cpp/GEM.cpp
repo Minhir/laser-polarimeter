@@ -31,12 +31,12 @@ std::vector<hit_struct> GEM_reco()
     polarity_vec.reserve(cnt.ReadyEvents);
     timestamp_vec.reserve(cnt.ReadyEvents);
 
-    for (int l = cnt.ReadyEvents; l>0; --l)
+    for (int l = cnt.ReadyEvents; l > 0; --l)
     {
         memset(&evt, 0, sizeof(evt));
         GEM_getEventData(0, &evt);
 
-        if (evt.channel_count!=0)
+        if (evt.channel_count != 0)
         {
             hits_online.push_back(GEM_reconstructFirstOnline(0, &evt));
             hits_cog.push_back(GEM_reconstructCoG(0, &evt));
@@ -51,9 +51,13 @@ std::vector<hit_struct> GEM_reco()
 
     for (int i = 0; i < size; ++i)
     {
-        hit_vec.push_back(hit_struct{hits_online[i].X, hits_online[i].Y,
-                                     hits_cog[i].Y, hits_cog[i].Y,
-                                     timestamp_vec[i], polarity_vec[i]});
+        if (std::isfinite(hits_online[i].X) && std::isfinite(hits_online[i].Y) &&
+            std::isfinite(hits_cog[i].Y) && std::isfinite(hits_cog[i].Y))
+        {
+            hit_vec.push_back(hit_struct{hits_online[i].X, hits_online[i].Y,
+                                         hits_cog[i].X, hits_cog[i].Y,
+                                         timestamp_vec[i], polarity_vec[i]});
+        }
     }
 
     return hit_vec;
@@ -61,9 +65,10 @@ std::vector<hit_struct> GEM_reco()
 
 std::vector<hit_struct> debug_data()
 {
-    std::vector<hit_struct> hit_vec;
-    hit_vec.reserve(1000);
-    for (int i = 0; i < 1000; ++i)
+    std::vector<hit_struct> hit_vec;        // TODO: поменять метку времени
+    int points_amount = 4000;
+    hit_vec.reserve(points_amount);
+    for (int i = 0; i < points_amount; ++i)
     {
         auto hit_pair = get_model_hit();
         hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * 8,
@@ -72,17 +77,4 @@ std::vector<hit_struct> debug_data()
                                      i % 2});
     }
     return std::move(hit_vec);
-}
-
-
-int main()
-{
-    /*init();
-    while (true)
-    {
-        usleep(1000000);
-        //GEM_reco_online();
-        debug_data();
-    }*/
-    return 0;
 }

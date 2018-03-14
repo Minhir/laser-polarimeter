@@ -3,15 +3,28 @@ import numpy_ringbuffer as ringbuffer
 import numpy as np
 from config import config
 from threading import Lock
+from depolarizer import depolarizer
 import time
 
 # from depolarizer import depolarizer
 
-chunk = np.dtype([('time', np.float64), ('pol', np.int32),
-                  ('x_online', np.float32), ('y_online', np.float32),
-                  ('x_cog', np.float32), ('y_cog', np.float32)])  # ID, I_e, detector
+chunk = np.dtype([('time', np.float64),
+                  ('x_online_l', np.float32), ('y_online_l', np.float32),
+                  ('x_online_r', np.float32), ('y_online_r', np.float32),
+                  ('x_cog_l', np.float32), ('y_cog_l', np.float32),
+                  ('x_cog_r', np.float32), ('y_cog_r', np.float32),
+                  ('x_online_asym', np.float32), ('y_online_asym', np.float32),
+                  ('x_cog_asym', np.float32), ('y_cog_asym', np.float32)])
 
 lock = Lock()
+
+names = ['time', 'depol_freq']
+
+for axis in ['x_', 'y_']:
+    for reco in ['online_', 'cog_']:
+        for type_ in ['l', 'r', 'asym']:
+            for error_ in ['', '_up_error', '_down_error']:
+                names.append(axis + reco + type_ + error_)
 
 
 class ChunkStorage:
@@ -25,108 +38,90 @@ class ChunkStorage:
         self.buffer_len = buffer_len
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.start_time = None
+        self.harmonic_number = depolarizer.get_harmonic_number()  # TODO: вынести
 
     def add(self, chunk_list):
         """
 
-        :param chunk_list: (time, pol, x_online_, y_online, x_cog, y_cog)
+        :param chunk_list: (time, pol, x_online_, y_online, x_cog, y_cog, asym_online, asym_cog)
         """
 
         with lock:
             for i in chunk_list:
                 self.data_.append(np.array(i, dtype=chunk))     # TODO: проверить неубывание
+                                                                # TODO: убрать список, добавлять как tuple
 
         if self.start_time is None and len(self.data_) != 0:
-            self.start_time = self.data_[0]['time']
-
-    # def get(self):
-    #     with lock:
-    #         return np.array(self.data_)
-
-    # def get_from(self, index):
-    #     """
-    #     Выдаёт данные с места index. Считает index так, как если бы это не был
-    #     циклический буффер.
-    #
-    #     Пример: длина буфера 10, а мы записали 15 чисел 1..15, тогда реально
-    #     в буфере находятся 6..15. Но по обращению к 15 мы получим 15 элемент.
-    #
-    #     :return:
-    #     """
-    #     # TODO сделать аккуратно
-    #     with lock:
-    #         new_index = index % self.buffer_len
-    #         if self.data_.is_full:
-    #             if new_index <= self.data_._left_index:
-    #                 return self.data_._arr[new_index:self.data_._left_index]
-    #             else:
-    #                 return np.concatenate((self.data_._arr[new_index:],
-    #                                        self.data_._arr[:self.data_._left_index]))
-    #         else:
-    #             return self.data_[new_index:]
+            self.start_time = self.data_['time'][0]
 
     def get_mean_from(self, last_time, period):
-        points = {'x_online': [], 'y_online': [],
-                  'online_error_lower': [], 'online_error_upper': [],
-                  'time': [], 'depol_freq': []}
 
+        points = {key: [] for key in names}
         t = time.time()
 
         with lock:
             if len(self.data_) == 0:
                 return points, last_time
 
-            data_ = self.data_
+            last_elem = self.data_.pop()
+            self.data_.append(last_elem)
 
-        time_ = data_['time']
+            if last_time + period >= last_elem['time']:
+                return points, last_time
+
+            data_ = np.copy(self.data_)
 
         if last_time == 0:
-            last_time = time_[0]
+            last_time = data_['time'][0]
 
-        while last_time + period < time_[-1]:
-            # TODO: избавиться от O(n). (а надо ли?)
+        while last_time + period < data_['time'][-1]:
 
-            left = bisect.bisect_right(time_, last_time)
-            right = bisect.bisect_right(time_, last_time + period)
+            left = bisect.bisect_right(data_['time'], last_time)
+            right = bisect.bisect_right(data_['time'], last_time + period)
 
             if left == right:
                 last_time += period
                 continue
 
             data = data_[left:right]
+            last_time = data['time'][-1]
 
-            y_mean = np.mean(data['y_online'])
-            y_std = np.std(data['x_online']) / len(data['x_online'])**0.5
-            points['x_online'].append(np.mean(data['x_online']))
-            points['y_online'].append(y_mean)
+            def make_point(name):
+                mean = np.mean(data[name])
+                error = np.std(data[name]) / (right - left)**0.5
+                points[name].append(mean)
+                points[name + '_down_error'].append(mean - error)
+                points[name + '_up_error'].append(mean + error)
 
-            points['online_error_lower'].append(y_mean - y_std)
-            points['online_error_upper'].append(y_mean + y_std)
+            for axis in ['x_', 'y_']:
+                for reco in ['online_', 'cog_']:
+                    for type_ in ['l', 'r', 'asym']:
+                        make_point(axis + reco + type_)
 
             mean_time = np.mean(data['time'])
             points['time'].append(mean_time - self.start_time)
-            last_time = data['time'][-1]
 
             # подшивка точки деполяризатора
 
-            # if True:   # TODO спрашивать состояние деполяризатора
-            #     def find_closest():
-            #         closest = float('inf')
-            #         key = -1
-            #         for k in depolarizer.fmap.keys():
-            #             if abs(k - mean_time) < closest:
-            #                 closest = abs(k - mean_time)
-            #                 key = k
-            #         return key
-            #
-            #     points['depol_freq'].append(find_closest())
-            #
-            # else:
-            #     points['depol_freq'].append(-1)
-            points['depol_freq'].append('-1')
+            def find_closest():
+                ind = bisect.bisect_right(depolarizer.fmap,
+                                          (mean_time, 0),
+                                          lo=0, hi=len(depolarizer.fmap)) - 1
+                if ind == -1:
+                    return 0
+
+                freq = depolarizer.fmap[ind][1]
+                if freq != 0:
+                    return depolarizer.frequency_to_energy(freq, depolarizer._F0, self.harmonic_number)
+                else:
+                    return 0
+
+            points['depol_freq'].append("%.3f" % find_closest())
+
+            # print(f"Time: {time.time() - t}")  # замер времени. Удалить.
             # подшивка точки деполяризатора
 
-        print(time.time() - t) # замер времени. Удалить.
+        print(time.time() - t)  # замер времени. Удалить.
         print(f"{100 * len(self.data_) / self.data_.maxlen} %")
 
         return points, last_time
@@ -169,23 +164,8 @@ class HistStorage:
             mean_ = np.mean(self.hists_[left:right], axis=0)  # TODO: проверить axis mean
         else:
             mean_ = np.zeros((self.X, self.Y), dtype=np.int32)
-
         return mean_.T
 
 
 data_storage_ = ChunkStorage(config.asym_buffer_len)
-# x = np.array((1, 2, 3, 4, 5, 6), dtype=chunk)  # TODO разобраться с индексированием циклического буфера
-# print(x)
-# data_storage_.add(x)
-# data_storage_.add(x)
-# data_storage_.add(x)
-# print(data_storage_.get()['time'])
-# print(len(data_storage_.data_))
-# print()
-# print(data_storage_.data_)
-# print()
-# print(np.array(data_storage_.data_))
-# print(data_storage_.data_._unwrap()[2])
-# print(data_storage_.data_[0:1])
-# print(data_storage_.data_[len(data_storage_.data_)])
 hist_storage_ = HistStorage(config.GEM_X, config.GEM_Y, config.hist_buffer_len)

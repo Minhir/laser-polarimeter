@@ -12,6 +12,7 @@ class Config:
                 _config = yaml.load(config_file)
                 self.GEM_X = int(_config['GEM']['X'])
                 self.GEM_Y = int(_config['GEM']['Y'])
+                self.GEM_idle = bool(_config['GEM']['idle_mod'])
                 self.hist_buffer_len = int(_config['data']['hist_buffer_len'])
                 self.asym_buffer_len = int(_config['data']['asym_buffer_len'])
                 self.web_port = int(_config['web']['port'])
@@ -32,6 +33,7 @@ class Config:
         print('Конфигурация:\n -- ', end='')
         print('\n -- '.join([f'GEM X = {self.GEM_X}',
                              f'GEM Y = {self.GEM_Y}',
+                             f'Холостой режим = {self.GEM_idle}',
                              f'Размер буфера гистограмм = {self.hist_buffer_len}',
                              f'Размер буфера точек = {self.asym_buffer_len}',
                              f'IP имеющие доступ: {self.ip_list}',

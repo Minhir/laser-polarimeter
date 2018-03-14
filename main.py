@@ -8,7 +8,7 @@ def main():
     # my_server_ = Server('localhost', 9091)
     # my_server_.start()
 
-    GEM_handler_ = GEM_handler(debug=True, sleeping_time=config.GEM_slipping_time)
+    GEM_handler_ = GEM_handler(debug=config.GEM_idle, sleeping_time=config.GEM_slipping_time)
     GEM_handler_.start()
 
     bokeh_server_ = BokehServer(app,

@@ -1,7 +1,10 @@
-import cpp.GEM as GEM
 import threading
 from time import sleep
+from itertools import chain
+
+import cpp.GEM as GEM
 from data_storage import hist_storage_, data_storage_
+
 
 
 class GEM_handler(threading.Thread):
@@ -17,6 +20,7 @@ class GEM_handler(threading.Thread):
         self.GEM = GEM
         self.debug = debug
         self.sleeping_time = sleeping_time
+        self.buf = []
 
     def get_data(self):
         if self.debug:
@@ -25,10 +29,66 @@ class GEM_handler(threading.Thread):
             data = self.GEM.GEM_reco()
 
         hist_storage_.add_as_array([i.x_cog for i in data], [i.y_cog for i in data])  # TODO добавить обе реконструкции
-        data_storage_.add([(i.timestamp, i.polarity, i.x_online, i.y_online, i.x_cog, i.y_cog) for i in data])
-        # global b
-        # data_storage_.add([(i / 100, 0, 0, sin(i / 100), 0, 0) for i in range(b, b + 1000)])
-        # b += 1000
+
+        # [('time', np.float64),
+        #  ('x_online_l', np.float32), ('y_online_l', np.float32),
+        #  ('x_online_r', np.float32), ('y_online_r', np.float32),
+        #  ('x_cog_l', np.float32), ('y_cog_l', np.float32),
+        #  ('x_cog_r', np.float32), ('y_cog_r', np.float32),
+        #  ('x_asym_online', np.float32), ('y_asym_online', np.float32),
+        #  ('x_asym_cog', np.float32), ('y_asym_cog', np.float32)])
+
+        delta_time = 0.1
+        first = True
+        x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
+        x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
+        counter_l, counter_r = 0, 0
+        end_point = 0
+
+        for hit_struct in chain(self.buf, data):
+            end_point += 1
+
+            if first:
+                start_time = hit_struct.timestamp
+                first = False
+
+            if hit_struct.timestamp <= start_time + delta_time:
+                if hit_struct.polarity == 0:
+                    counter_l += 1
+                    x_online_l += hit_struct.x_online
+                    y_online_l += hit_struct.y_online
+                    x_cog_l += hit_struct.x_cog
+                    y_cog_l += hit_struct.y_cog
+                else:
+                    counter_r += 1
+                    x_online_r += hit_struct.x_online
+                    y_online_r += hit_struct.y_online
+                    x_cog_r += hit_struct.x_cog
+                    y_cog_r += hit_struct.y_cog
+            else:
+                start_time += delta_time
+                if counter_l == 0 or counter_r == 0:
+                    continue
+
+                data_storage_.add([(start_time - delta_time / 2,
+                                   x_online_l / counter_l, y_online_l / counter_l,
+                                   x_online_r / counter_r, y_online_r / counter_r,
+                                   x_cog_l    / counter_l, y_cog_l    / counter_l,
+                                   x_cog_r    / counter_r, y_cog_r    / counter_r,
+                                   x_online_l / counter_l - x_online_r / counter_r,
+                                   y_online_l / counter_l - y_online_r / counter_r,
+                                   x_cog_l / counter_l - x_cog_r / counter_r,
+                                   y_cog_l / counter_l - y_cog_r / counter_r)])
+
+                x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
+                x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
+                counter_l, counter_r = 0, 0
+
+        if end_point > len(self.buf):
+            self.buf += data[end_point - len(self.buf):]
+        else:
+            self.buf = self.buf[end_point:]
+            self.buf += data[:]
 
     def run(self):
         try:
