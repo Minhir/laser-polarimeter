@@ -55,6 +55,7 @@ class ChunkStorage:
             self.start_time = self.data_['time'][0]
 
     def get_mean_from(self, last_time, period):
+        # print(f"Current len = {len(self.data_)}")  # TODO: разобраться с длиной
 
         points = {key: [] for key in names}
         t = time.time()

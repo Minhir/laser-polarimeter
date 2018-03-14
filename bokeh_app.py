@@ -1,12 +1,7 @@
-from functools import partial
-
-from bokeh.layouts import row, column, layout
+from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Whisker, LinearAxis
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs
-
-import numpy as np
-from tornado import gen
 
 from math import pi
 from data_storage import hist_storage_, data_storage_, names
@@ -19,8 +14,10 @@ def app(doc):
     # Гистограмма пятна
     img = hist_storage_.get_hist()
     hist_source = ColumnDataSource(data=dict(image=[img]))
-    scale_ = 6
-    hist_fig = figure(plot_width=config.GEM_X * scale_, plot_height=config.GEM_Y * scale_,
+    width_ = config.GEM_X * 5
+    hist_height_ = config.GEM_Y * 5
+    height_ = 300
+    hist_fig = figure(plot_width=width_, plot_height=hist_height_,
                       x_range=(0, config.GEM_X), y_range=(0, config.GEM_Y))
 
     hist_fig.image(image='image', x=0, y=0, dw=config.GEM_X, dh=config.GEM_Y, palette="Spectral11", source=hist_source)
@@ -36,7 +33,7 @@ def app(doc):
     # График асимметрии
     # TODO выделение точки
 
-    asym_fig = figure(plot_width=960, plot_height=400) # , x_range=[0, 10], y_range=[0, 10])
+    asym_fig = figure(plot_width=width_, plot_height=height_) # , x_range=[0, 10], y_range=[0, 10])
 
     asym_source = ColumnDataSource({key: [] for key in names})
 
@@ -44,13 +41,13 @@ def app(doc):
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
 
     asym_fig.add_layout(Whisker(source=asym_source, base="time",
-                                upper="y_online_l_up_error", lower="y_online_l_down_error"))  # TODO: сделать усы
+                                upper="y_online_asym_up_error", lower="y_online_asym_down_error"))  # TODO: сделать усы
 
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    asym_fig.circle('time', 'y_online_l', source=asym_source, size=8, color="black")
+    asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black")
 
-    asym_fig.yaxis[0].axis_label = "<y> [мм]"
+    asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
     asym_fig.xaxis[1].axis_label = 'Частота деполяризатора'
     asym_fig.xaxis[1].major_label_orientation = pi / 2  # 0.52
@@ -81,15 +78,40 @@ def app(doc):
             asym_fig.xaxis[1].major_label_overrides[time] = points['depol_freq'][i]
             depol_list.append(time)
 
-        asym_fig.xaxis[1].ticker = depol_list
+        asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
         asym_source.stream(points, rollover=10000)
         # doc.add_next_tick_callback(partial(asym_plot, points))
 
+    # Настраиваемы график
+
+    fig_names = ["y_online"]
+    fig_handler = []
+
+    for fig_name in fig_names:
+        for type_ in ['_l', '_r']:
+            fig = figure(plot_width=width_, plot_height=height_)
+
+            fig.add_layout(Whisker(source=asym_source, base="time",
+                                   upper=fig_name + type_ + '_up_error',
+                                   lower=fig_name + type_ + '_down_error'))
+
+            fig.circle('time', fig_name + type_, source=asym_source, size=8, color="black")
+            fig.yaxis[0].axis_label = f"<{fig_name + type_}> [мм]"
+            fig.xaxis[0].axis_label = 'Время'
+
+            fig_handler.append((fig, fig_name + type_))
+
     # Вкладки графика
-    # tab1 = Panel(child=asym_fig, title="Y")
-    # tabs = Tabs(tabs=[tab1, tab2])
+    tab1 = Panel(child=asym_fig, title="Y")
+    tabs = []
+    for fig, fig_name in fig_handler:
+        tabs.append(Panel(child=fig, title=fig_name))
+
+    tab_handler = Tabs(tabs=tabs)
 
     # Окно статуса деполяризатора
+
+    # TODO: часы
 
     depol_status_window = Div(text="""Статус деполяризатора.
     Выключен""",
@@ -140,19 +162,13 @@ def app(doc):
     depol_button_start.on_click(start_scan)
     depol_button_stop.on_click(stop_scan)
 
-    # TODO: Вводить: скорость, шаг, начало, конец, диапазон (пересчёт начало/конец), ожидаемая энергия
-
     # Инициализация bokeh app
+    column_1 = column(tab_handler, asym_fig, asym_slider, width=width_ + 50)
+    widgets_ = WidgetBox(depol_button_start, depol_button_stop)
+    column_2 = column(hist_fig, hist_slider, widgets_, depol_input_speed,
+                      depol_input_step, depol_input_initial, depol_input_final, depol_status_window)
+    layout_ = row(column_1, column_2)
 
-    layout_ = layout([
-        [hist_fig],
-        [hist_slider],
-        [asym_fig],
-        [asym_slider],
-        [depol_button_start, depol_button_stop],
-        [depol_input_speed, depol_input_step, depol_input_initial, depol_input_final],
-        [depol_status_window]
-    ])
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
     doc.add_periodic_callback(asym_update, 1000)         # TODO: подобрать периоды

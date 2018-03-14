@@ -6,7 +6,6 @@ import cpp.GEM as GEM
 from data_storage import hist_storage_, data_storage_
 
 
-
 class GEM_handler(threading.Thread):
 
     def __init__(self, debug=False, sleeping_time=1):
@@ -30,14 +29,6 @@ class GEM_handler(threading.Thread):
 
         hist_storage_.add_as_array([i.x_cog for i in data], [i.y_cog for i in data])  # TODO добавить обе реконструкции
 
-        # [('time', np.float64),
-        #  ('x_online_l', np.float32), ('y_online_l', np.float32),
-        #  ('x_online_r', np.float32), ('y_online_r', np.float32),
-        #  ('x_cog_l', np.float32), ('y_cog_l', np.float32),
-        #  ('x_cog_r', np.float32), ('y_cog_r', np.float32),
-        #  ('x_asym_online', np.float32), ('y_asym_online', np.float32),
-        #  ('x_asym_cog', np.float32), ('y_asym_cog', np.float32)])
-
         delta_time = 0.1
         first = True
         x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
@@ -59,6 +50,7 @@ class GEM_handler(threading.Thread):
                     y_online_l += hit_struct.y_online
                     x_cog_l += hit_struct.x_cog
                     y_cog_l += hit_struct.y_cog
+
                 else:
                     counter_r += 1
                     x_online_r += hit_struct.x_online
@@ -84,11 +76,13 @@ class GEM_handler(threading.Thread):
                 x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
                 counter_l, counter_r = 0, 0
 
+        new_buf = []
         if end_point > len(self.buf):
-            self.buf += data[end_point - len(self.buf):]
+            new_buf += data[end_point - len(self.buf):]
         else:
-            self.buf = self.buf[end_point:]
-            self.buf += data[:]
+            new_buf = self.buf[end_point:]
+            new_buf += data[:]
+        self.buf = new_buf
 
     def run(self):
         try:
