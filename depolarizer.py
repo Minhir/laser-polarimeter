@@ -2,9 +2,12 @@ from Message_pb2 import *
 import socket
 import struct
 import time
-from threading import Thread
+from threading import Thread, Lock
 
 # some helper function to send and receive message
+
+lock_recieve = Lock()
+lock_send = Lock()
 
 
 def send(sock, message):
@@ -31,17 +34,30 @@ class Depolarizer:
         self.sock = socket.socket()
         self.sock.connect((host, port))
         self.fmap_thread = None
+        self.update_thread = None
         self.message_id = 0
         self.is_fmap = False
         self.fmap = []
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
+        self.attenuation = self.get_attenuation()
+        self.final = self.get_final()
+        self.initial = self.get_initial()
+        self.is_scan = self.get_is_scan()
+        self.speed = self.get_speed()
+        self.harmonic_number = self.get_harmonic_number()
+        self.step = self.get_step()
+        self.revolution_frequency = self.get_revolution_frequency()
+        self.state = self.get_state()
+
     def send(self, message):
-        send(self.sock, message)
+        with lock_send:
+            send(self.sock, message)
 
     def receive(self):
-        return receive(self.sock)
+        with lock_recieve:
+            return receive(self.sock)
 
     def do(self, command):
         m = Message()
@@ -86,12 +102,14 @@ class Depolarizer:
         return self.get(Message.STATE)
 
     def is_off(self):
-        return not (self.get_state() == Message.ON or self.get_state() == Message.SCAN)
+        state = self.get_state()
+        return not (state == Message.ON or state == Message.SCAN)
 
     def is_on(self):
-        return self.get_state() == Message.ON or self.get_state() == Message.SCAN
+        state = self.get_state()
+        return state == Message.ON or state == Message.SCAN
 
-    def is_scan(self):
+    def get_is_scan(self):
         return self.get_state() == Message.SCAN
 
     def get_initial(self):
@@ -156,7 +174,7 @@ class Depolarizer:
     def start_fmap(self):
         if not self.is_fmap:
             self.is_fmap = True
-            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=())
+            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update')
             self.fmap_thread.start()
             print("fmap tread started")
 
@@ -178,7 +196,26 @@ class Depolarizer:
 
     def energy_to_frequency(self, E, f0, n):
         return (E / self._RD-n) * f0
-        
+
+    def update_status(self):
+        while True:
+            time.sleep(1)
+            self.attenuation = self.get_attenuation()
+            self.final = self.get_final()
+            self.initial = self.get_initial()
+            self.is_scan = self.get_is_scan()
+            self.speed = self.get_speed()
+            self.harmonic_number = self.get_harmonic_number()
+            self.step = self.get_step()
+            self.revolution_frequency = self.get_revolution_frequency()
+            self.state = self.get_state()
+
+    def start_update(self):
+        if self.update_thread is None:
+            self.update_thread = Thread(target=self.update_status, name='depol status update')
+            self.update_thread.start()
+
 
 depolarizer = Depolarizer('192.168.176.61', 9090)
 depolarizer.start_fmap()
+depolarizer.start_update()

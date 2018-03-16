@@ -7,6 +7,8 @@ from math import pi
 from data_storage import hist_storage_, data_storage_, names
 from depolarizer import depolarizer
 from config import config
+import cpp.GEM as GEM
+from fit import fit, get_line
 
 
 def app(doc):
@@ -84,7 +86,7 @@ def app(doc):
 
     # Настраиваемы график
 
-    fig_names = ["y_online"]
+    fig_names = ["y_online", "y_cog"]
     fig_handler = []
 
     for fig_name in fig_names:
@@ -99,6 +101,8 @@ def app(doc):
             fig.yaxis[0].axis_label = f"<{fig_name + type_}> [мм]"
             fig.xaxis[0].axis_label = 'Время'
 
+            fig.x_range = asym_fig.x_range
+
             fig_handler.append((fig, fig_name + type_))
 
     # Вкладки графика
@@ -107,11 +111,12 @@ def app(doc):
     for fig, fig_name in fig_handler:
         tabs.append(Panel(child=fig, title=fig_name))
 
-    tab_handler = Tabs(tabs=tabs)
+    tab_handler = Tabs(tabs=tabs, width=width_)
 
     # Окно статуса деполяризатора
 
     # TODO: часы
+    # TODO: временной офсет
 
     depol_status_window = Div(text="""Статус деполяризатора.
     Выключен""",
@@ -119,27 +124,53 @@ def app(doc):
 
     depol_button_start = Button(label="Включить сканирование", width=200)
     depol_button_stop = Button(label="Выключить сканирование", width=200)
+    fake_depol_button = Button(label="Деполяризовать", width=200)
+    fit_button = Button(label="FIT", width=200)
 
-    depol_input_speed = TextInput(value=str(depolarizer.get_speed()), title="Скорость:")
-    depol_input_step = TextInput(value=str(depolarizer.get_step()), title="Шаг:")
-    depol_input_initial = TextInput(value=str(depolarizer.get_initial()), title="Начало:")
-    depol_input_final = TextInput(value=str(depolarizer.get_final()), title="Конец:")
+    def FIT():
+        m = fit(asym_source.data['time'], asym_source.data['y_online_asym'], [1 for i in range(len(asym_source.data['time']))])
+        a = m.get_param_states()
+        print(a)
+        asym_fig.circle(asym_source.data['time'], get_line(asym_source.data['time'], [x['value'] for x in a]), size=8, color="red")
 
-    def update_depol_status():
-        if depolarizer.is_scan():
-            depol_button_start .button_type = "success"
-            depol_button_stop.button_type = "danger"
-        else:
-            depol_button_start .button_type = "danger"
-            depol_button_stop.button_type = "success"
 
+    fake_depol_button.on_click(GEM.depolarize)
+    fit_button.on_click(FIT)
+
+    depol_input_speed = TextInput(value=str(depolarizer.speed), title="Скорость:")
+    depol_input_step = TextInput(value=str(depolarizer.step), title="Шаг:")
+    depol_input_initial = TextInput(value=str(depolarizer.initial), title="Начало:")
+    depol_input_final = TextInput(value=str(depolarizer.final), title="Конец:")
+
+    def change_speed(attr, old, new):
+        print(f"New = {new}")
         try:
-            depol_speed = float(depol_input_speed.value)    # TODO: добавить проверку. Обновлять значние. Раз в секунду.
+            depol_speed = float(new)
+            if depol_speed == depolarizer.speed:
+                return
 
             if abs(depol_speed) < 1000:
                 depolarizer.set_speed(depol_speed)
             else:
                 raise ValueError("Некорректное значение скорости")
+        except ValueError as e:
+            depol_input_speed.value = "Некорректное значение скорости"
+            print(e)
+
+    # depol_input_speed.on_change('value', change_speed)    # TODO: разобратсья с кнопками
+
+    def update_depol_status():
+        if depolarizer.is_scan:
+            depol_button_start.button_type = "success"
+            depol_button_stop.button_type = "danger"
+        else:
+            depol_button_start.button_type = "danger"
+            depol_button_stop.button_type = "success"
+
+        try:
+            depol_input_speed.value = str(depolarizer.speed)
+
+
 
             depol_step = float(depol_input_step.value)
             depolarizer.set_step(depol_step)
@@ -153,18 +184,12 @@ def app(doc):
         except ValueError as e:
             print(e)
 
-    def start_scan():
-        depolarizer.start_scan()
-
-    def stop_scan():
-        depolarizer.stop_scan()
-
-    depol_button_start.on_click(start_scan)
-    depol_button_stop.on_click(stop_scan)
+    depol_button_start.on_click(depolarizer.start_scan)
+    depol_button_stop.on_click(depolarizer.stop_scan)
 
     # Инициализация bokeh app
     column_1 = column(tab_handler, asym_fig, asym_slider, width=width_ + 50)
-    widgets_ = WidgetBox(depol_button_start, depol_button_stop)
+    widgets_ = WidgetBox(depol_button_start, depol_button_stop, fake_depol_button, fit_button)
     column_2 = column(hist_fig, hist_slider, widgets_, depol_input_speed,
                       depol_input_step, depol_input_initial, depol_input_final, depol_status_window)
     layout_ = row(column_1, column_2)
