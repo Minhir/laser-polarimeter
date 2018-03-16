@@ -19,3 +19,5 @@ void init();
 std::vector<hit_struct> GEM_reco();
 
 std::vector<hit_struct> debug_data();
+
+void depolarize();

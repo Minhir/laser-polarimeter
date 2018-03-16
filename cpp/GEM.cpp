@@ -63,18 +63,30 @@ std::vector<hit_struct> GEM_reco()
     return hit_vec;
 }
 
+double start_time = 0;
+
+void depolarize()
+{
+    start_time = 0;
+}
+
+
 std::vector<hit_struct> debug_data()
 {
-    std::vector<hit_struct> hit_vec;        // TODO: поменять метку времени
+
+    std::vector<hit_struct> hit_vec;
     int points_amount = 4000;
     hit_vec.reserve(points_amount);
+    double sec_ = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000. - 1;
+    if (start_time == 0) start_time = sec_;
     for (int i = 0; i < points_amount; ++i)
     {
         auto hit_pair = get_model_hit();
-        hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * 8,
-                                     hit_pair.first, hit_pair.second + (i % 2) * 8,
-                                     std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000.,
+        hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
+                                     hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
+                                     sec_,
                                      i % 2});
+        sec_ += 1. / points_amount;
     }
     return std::move(hit_vec);
 }
