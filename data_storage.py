@@ -6,7 +6,6 @@ from threading import Lock
 from depolarizer import depolarizer
 import time
 
-# from depolarizer import depolarizer
 
 chunk = np.dtype([('time', np.float64),
                   ('x_online_l', np.float32), ('y_online_l', np.float32),
@@ -38,18 +37,15 @@ class ChunkStorage:
         self.buffer_len = buffer_len
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.start_time = None
-        self.harmonic_number = depolarizer.get_harmonic_number()  # TODO: вынести
 
-    def add(self, chunk_list):
+    def add(self, chunk_):
         """
 
-        :param chunk_list: (time, pol, x_online_, y_online, x_cog, y_cog, asym_online, asym_cog)
+        :param chunk_: tuple of chunk parameters
         """
 
         with lock:
-            for i in chunk_list:
-                self.data_.append(np.array(i, dtype=chunk))     # TODO: проверить неубывание
-                                                                # TODO: убрать список, добавлять как tuple
+            self.data_.append(np.array(chunk_, dtype=chunk))     # TODO: проверить неубывание
 
         if self.start_time is None and len(self.data_) != 0:
             self.start_time = self.data_['time'][0]
@@ -113,7 +109,7 @@ class ChunkStorage:
 
                 freq = depolarizer.fmap[ind][1]
                 if freq != 0:
-                    return depolarizer.frequency_to_energy(freq, depolarizer._F0, self.harmonic_number)
+                    return depolarizer.frequency_to_energy(freq, depolarizer._F0, depolarizer.harmonic_number)
                 else:
                     return 0
 
