@@ -83,7 +83,7 @@ std::vector<hit_struct> debug_data()
     {
         auto hit_pair = get_model_hit();
         hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
-                                     hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
+                                     hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time) * 1.1f,
                                      sec_,
                                      i % 2});
         sec_ += 1. / points_amount;

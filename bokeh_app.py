@@ -1,6 +1,9 @@
+from operator import setitem
+
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis, WheelZoomTool
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis
+from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs
 
 from math import pi
@@ -43,13 +46,24 @@ def app(doc):
 
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
 
-    asym_fig.add_layout(Whisker(source=asym_source, base="time",
-                                upper="y_online_asym_up_error", lower="y_online_asym_down_error"))  # TODO: сделать усы
+    y_online_asym_error = Whisker(source=asym_source, base="time",
+                                  upper="y_online_asym_up_error", lower="y_online_asym_down_error")
 
+    y_cog_asym_error = Whisker(source=asym_source, base="time",
+                               upper="y_cog_asym_up_error", lower="y_cog_asym_down_error")
+
+    asym_fig.add_layout(y_online_asym_error)
+    asym_fig.add_layout(y_cog_asym_error)
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="Online")
-    asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=8, color="green", legend="COG")
+    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="Online")
+    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=8, color="green", legend="COG")
+
+    y_online_asym.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
+                                                   code="""x.visible = cb_obj.visible"""))
+
+    y_cog_asym.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
+                                                code="""x.visible = cb_obj.visible"""))
 
     asym_fig.legend.click_policy = "hide"
 
@@ -63,11 +77,7 @@ def app(doc):
     asym_slider = Slider(start=1, end=300, value=100, step=1, title="Время усреднения")
     params = {'last_time': 0, 'period': 1}
 
-
-    # def asym_plot(points):
-
     def update_data():
-
         if params['period'] != asym_slider.value:
             asym_source.data = {name: [] for name in names}
             params['period'] = asym_slider.value
@@ -87,7 +97,7 @@ def app(doc):
         asym_source.stream(points, rollover=10000)
         # doc.add_next_tick_callback(partial(asym_plot, points))
 
-    # Настраиваемы график
+    # Настраиваемый график
 
     fig_names = ["y_online", "y_cog"]
     fig_handler = []
@@ -97,7 +107,6 @@ def app(doc):
             fig = figure(plot_width=width_, plot_height=height_,
                          tools="box_zoom, wheel_zoom, pan, save, reset",
                          active_scroll="wheel_zoom")
-
 
             fig.add_layout(Whisker(source=asym_source, base="time",
                                    upper=fig_name + type_ + '_up_error',
