@@ -1,6 +1,6 @@
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis, WheelZoomTool
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs
 
 from math import pi
@@ -35,11 +35,12 @@ def app(doc):
     # График асимметрии
     # TODO выделение точки
 
-    asym_fig = figure(plot_width=width_, plot_height=height_) # , x_range=[0, 10], y_range=[0, 10])
+    asym_fig = figure(plot_width=width_, plot_height=height_,
+                      tools="box_zoom, wheel_zoom, pan, save, reset",
+                      active_scroll="wheel_zoom")
 
     asym_source = ColumnDataSource({key: [] for key in names})
 
-    # asym_fig.extra_x_ranges["depolarizer"] = FactorRange("c", 'f')
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
 
     asym_fig.add_layout(Whisker(source=asym_source, base="time",
@@ -47,7 +48,10 @@ def app(doc):
 
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black")
+    asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="Online")
+    asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=8, color="green", legend="COG")
+
+    asym_fig.legend.click_policy = "hide"
 
     asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
@@ -59,11 +63,10 @@ def app(doc):
     asym_slider = Slider(start=1, end=300, value=100, step=1, title="Время усреднения")
     params = {'last_time': 0, 'period': 1}
 
-    # 'x_start': 10**10, 'x_end': 0}
 
     # def asym_plot(points):
 
-    def asym_update():
+    def update_data():
 
         if params['period'] != asym_slider.value:
             asym_source.data = {name: [] for name in names}
@@ -91,7 +94,10 @@ def app(doc):
 
     for fig_name in fig_names:
         for type_ in ['_l', '_r']:
-            fig = figure(plot_width=width_, plot_height=height_)
+            fig = figure(plot_width=width_, plot_height=height_,
+                         tools="box_zoom, wheel_zoom, pan, save, reset",
+                         active_scroll="wheel_zoom")
+
 
             fig.add_layout(Whisker(source=asym_source, base="time",
                                    upper=fig_name + type_ + '_up_error',
@@ -196,6 +202,6 @@ def app(doc):
 
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
-    doc.add_periodic_callback(asym_update, 1000)         # TODO: подобрать периоды
+    doc.add_periodic_callback(update_data, 1000)         # TODO: подобрать периоды
     doc.add_periodic_callback(update_depol_status, 1000)
     doc.title = "Laser polarimeter"
