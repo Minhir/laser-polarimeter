@@ -6,7 +6,7 @@ from threading import Thread, Lock
 
 # some helper function to send and receive message
 
-lock_recieve = Lock()
+lock_receive = Lock()
 lock_send = Lock()
 
 
@@ -56,7 +56,7 @@ class Depolarizer:
             send(self.sock, message)
 
     def receive(self):
-        with lock_recieve:
+        with lock_receive:
             return receive(self.sock)
 
     def do(self, command):
@@ -177,7 +177,7 @@ class Depolarizer:
     def start_fmap(self):
         if not self.is_fmap:
             self.is_fmap = True
-            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update')
+            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update', daemon=True)
             self.fmap_thread.start()
             print("fmap tread started")
 
