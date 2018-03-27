@@ -1,3 +1,4 @@
+import sys
 from Message_pb2 import *
 import socket
 import struct
@@ -247,12 +248,13 @@ class FakeDepolarizer:
         pass
 
 
+if sys.version[0] == '2':
+    ConnectionRefusedError = Exception
+
 try:
     depolarizer = Depolarizer('192.168.176.61', 9090)
     depolarizer.start_fmap()
     depolarizer.start_update()
-except Exception as e:
-    print(e)
 except ConnectionRefusedError as e:
     print(e)
     print("Unable to connect to depolarizer")
