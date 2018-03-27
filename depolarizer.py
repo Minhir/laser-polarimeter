@@ -37,7 +37,7 @@ class Depolarizer:
         self.update_thread = None
         self.message_id = 0
         self.is_fmap = False
-        self.fmap = []     # TODO: переделать на фикс. размер; во время поиска игнорировать события более чем 5 сек (?)
+        self.fmap = []     # TODO: fix size
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
@@ -127,6 +127,9 @@ class Depolarizer:
     def get_attenuation(self):
         return self.get(Message.ATTENUATION)
 
+    def get_current_frequency(self):
+        return self.get(Message.CURRENT)
+
     def get_harmonic_number(self):
         return self.get(Message.HARMONIC_NUMBER)
 
@@ -189,7 +192,7 @@ class Depolarizer:
 
     def print_fmap(self):
         for time_, freq in self.fmap:
-            print(f"{time_} {freq}")
+            print(time, "   ", freq)
 
     def frequency_to_energy(self, f, f0=None, n=None):
         if f0 is None:
@@ -248,5 +251,5 @@ try:
     depolarizer.start_update()
 except ConnectionRefusedError as e:
     print(e)
-    print("Не удалось подключиться к деполяризатору")
+    print("Unable to connect to depolarizer")
     depolarizer = FakeDepolarizer()
