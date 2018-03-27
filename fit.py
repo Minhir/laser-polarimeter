@@ -8,9 +8,9 @@ class GenericChi2:
         self.y = y
         self.y_err = y_err
         self.f = f
-        args = describe(f)  #extract function signature
+        args = describe(f)  # extract function signature
         self.func_code = Struct(
-                co_varnames=args[1:],   # dock off independent param
+                locals=args[1:],   # dock off independent param
                 co_argcount=len(args)-1
             )
 
@@ -46,7 +46,7 @@ def exp_jump(time, depol_time, P0, Pmax, tau, DELTA, T):
 
 
 def fit(x, y, y_err):
-    m = Minuit(GenericChi2(exp_jump, x, y, y_err),depol_time=50, P0=0, Pmax=10, tau=14, DELTA=0, T=1)
+    m = Minuit(GenericChi2(exp_jump, x, y, y_err), depol_time=50, P0=0, Pmax=10, tau=14, DELTA=0, T=1)
     m.migrad()
     # m.print_param()
     return m

@@ -32,8 +32,10 @@ def app(doc):
                               step=1, title="Срез пятна (от..до) сек назад")
 
     def hist_update():
-        hist_source.data = {'image': [hist_storage_.get_hist(hist_buffer_len - hist_slider.value[1],
-                                                             hist_buffer_len - hist_slider.value[0])]}  # TODO: починить
+        img = hist_storage_.get_hist(hist_buffer_len - hist_slider.value[1],
+                                                             hist_buffer_len - hist_slider.value[0])# TODO: починить
+        print(f"sum = {hist_storage_.get_events_num()}")
+        hist_source.data = {'image': [img]}
 
     # График асимметрии
     # TODO выделение точки
@@ -56,14 +58,14 @@ def app(doc):
     asym_fig.add_layout(y_cog_asym_error)
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="Online")
+    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="ONE")
     y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=8, color="green", legend="COG")
 
     y_online_asym.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
-                                                   code="""x.visible = cb_obj.visible"""))
+                                                   code="x.visible = cb_obj.visible"))
 
     y_cog_asym.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
-                                                code="""x.visible = cb_obj.visible"""))
+                                                code="x.visible = cb_obj.visible"))
 
     asym_fig.legend.click_policy = "hide"
 
@@ -74,13 +76,13 @@ def app(doc):
     depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
 
-    asym_slider = Slider(start=1, end=300, value=100, step=1, title="Время усреднения")
+    period_input = TextInput(value=str(60), title="Время усреднения:")
     params = {'last_time': 0, 'period': 1}
 
     def update_data():
-        if params['period'] != asym_slider.value:
+        if params['period'] != int(period_input.value):
             asym_source.data = {name: [] for name in names}
-            params['period'] = asym_slider.value
+            params['period'] = int(period_input.value)
             params['last_time'] = 0
             # asym_fig.xaxis[1].ticker.ticks.clear()
             depol_list.clear()
@@ -96,6 +98,21 @@ def app(doc):
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
         asym_source.stream(points, rollover=10000)
         # doc.add_next_tick_callback(partial(asym_plot, points))
+
+    def change_period(attr, old, new):
+        if old == new:
+            return
+
+        try:
+            val = int(new)
+            if not (0 < val < 10000):
+                raise ValueError("Некорректное значение")
+
+        except ValueError as e:
+            period_input.value = old
+            print(e)
+
+    period_input.on_change('value', change_period)
 
     # Настраиваемый график
 
@@ -134,45 +151,65 @@ def app(doc):
     # TODO: временной офсет
 
     depol_status_window = Div(text="""Статус деполяризатора.
-    Выключен""",
-              width=200, height=100)
+    Выключен""", width=200, height=100)
 
     depol_button_start = Button(label="Включить сканирование", width=200)
     depol_button_stop = Button(label="Выключить сканирование", width=200)
     fake_depol_button = Button(label="Деполяризовать", width=200)
     fit_button = Button(label="FIT", width=200)
 
-    def FIT():
+    def fit_callback():
         m = fit(asym_source.data['time'], asym_source.data['y_online_asym'], [1 for i in range(len(asym_source.data['time']))])
         a = m.get_param_states()
         print(a)
         asym_fig.circle(asym_source.data['time'], get_line(asym_source.data['time'], [x['value'] for x in a]), size=8, color="red")
 
-
     fake_depol_button.on_click(GEM.depolarize)
-    fit_button.on_click(FIT)
+    fit_button.on_click(fit_callback)
 
     depol_input_speed = TextInput(value=str(depolarizer.speed), title="Скорость:")
     depol_input_step = TextInput(value=str(depolarizer.step), title="Шаг:")
     depol_input_initial = TextInput(value=str(depolarizer.initial), title="Начало:")
     depol_input_final = TextInput(value=str(depolarizer.final), title="Конец:")
+    depol_input_harmonic = TextInput(value=str(depolarizer.harmonic_number), title="Номер гармоники")
 
-    def change_speed(attr, old, new):
-        print(f"New = {new}")
-        try:
-            depol_speed = float(new)
-            if depol_speed == depolarizer.speed:
+    def change_value_generator(value_name):
+        depol_dict = {"speed": (depol_input_speed, depolarizer.speed, depolarizer.set_speed),
+                      "step": (depol_input_step, depolarizer.step, depolarizer.set_step),
+                      "initial": (depol_input_initial, depolarizer.initial, depolarizer.set_initial),
+                      "final": (depol_input_final, depolarizer.final, depolarizer.set_final),
+                      "harmonic": (depol_input_harmonic, depolarizer.harmonic_number, depolarizer.set_harmonic_number)}
+
+        depol_input, depol_current, depol_set = depol_dict[value_name]
+
+        def change_value(attr, old, new):
+            if old == new:
                 return
+            try:
+                if value_name == 'harmonic':
+                    val = int(new)
+                else:
+                    val = float(new)
 
-            if abs(depol_speed) < 1000:
-                depolarizer.set_speed(depol_speed)
-            else:
-                raise ValueError("Некорректное значение скорости")
-        except ValueError as e:
-            depol_input_speed.value = "Некорректное значение скорости"
-            print(e)
+                if depol_current == val:
+                    return
 
-    # depol_input_speed.on_change('value', change_speed)    # TODO: разобратсья с кнопками
+                if config.depol_bounds[value_name][0] < val < config.depol_bounds[value_name][1]:
+                    depol_set(val)
+                else:
+                    raise ValueError("Некорректное значение")
+
+            except ValueError as e:
+                depol_input.value = str(depol_current)
+                print(e)
+
+        return change_value
+
+    depol_input_speed.on_change('value', change_value_generator("speed"))
+    depol_input_step.on_change('value', change_value_generator("step"))
+    depol_input_initial.on_change('value', change_value_generator("initial"))
+    depol_input_final.on_change('value', change_value_generator("final"))
+    depol_input_harmonic.on_change('value', change_value_generator('harmonic'))
 
     def update_depol_status():
         if depolarizer.is_scan:
@@ -182,31 +219,16 @@ def app(doc):
             depol_button_start.button_type = "danger"
             depol_button_stop.button_type = "success"
 
-        try:
-            depol_input_speed.value = str(depolarizer.speed)
-
-
-
-            depol_step = float(depol_input_step.value)
-            depolarizer.set_step(depol_step)
-
-            depol_init = float(depol_input_initial.value)
-            depolarizer.set_initial(depol_init)
-
-            depol_final = float(depol_input_final.value)
-            depolarizer.set_final(depol_final)
-
-        except ValueError as e:
-            print(e)
-
     depol_button_start.on_click(depolarizer.start_scan)
     depol_button_stop.on_click(depolarizer.stop_scan)
 
     # Инициализация bokeh app
-    column_1 = column(tab_handler, asym_fig, asym_slider, width=width_ + 50)
+    column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
     widgets_ = WidgetBox(depol_button_start, depol_button_stop, fake_depol_button, fit_button)
-    column_2 = column(hist_fig, hist_slider, widgets_, depol_input_speed,
-                      depol_input_step, depol_input_initial, depol_input_final, depol_status_window)
+    column_2 = column(hist_fig, hist_slider, widgets_,
+                      depol_input_harmonic, depol_input_speed,
+                      depol_input_step, depol_input_initial,
+                      depol_input_final, depol_status_window)
     layout_ = row(column_1, column_2)
 
     doc.add_root(layout_)

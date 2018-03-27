@@ -18,6 +18,7 @@ class Config:
                 self.web_port = int(_config['web']['port'])
                 self.ip_list = _config['web']['allowed_ip']
                 self.GEM_slipping_time = float(_config['GEM']['call_period'])
+                self.depol_bounds = _config['depolarizer']['bounds']
                 for i in range(len(self.ip_list)):
                     #  Припишем номер порта к ip адресам
                     self.ip_list[i] += ':' + str(self.web_port)
@@ -36,6 +37,7 @@ class Config:
                              f'Холостой режим = {self.GEM_idle}',
                              f'Размер буфера гистограмм = {self.hist_buffer_len}',
                              f'Размер буфера точек = {self.asym_buffer_len}',
+                             f'Ограничения настроек деполяризатора {self.depol_bounds}',
                              f'IP имеющие доступ: {self.ip_list}',
                              f'Период опроса детектора = {self.GEM_slipping_time}']), end="\n\n")
 

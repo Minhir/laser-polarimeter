@@ -49,7 +49,7 @@ std::vector<hit_struct> GEM_reco()
     std::vector<hit_struct> hit_vec;
     hit_vec.reserve(size);
 
-    for (int i = 0; i < size; ++i)
+    for (int i = 0; i < size; ++i)  // TODO: усреднение по 0.1 сек
     {
         if (std::isfinite(hits_online[i].X) && std::isfinite(hits_online[i].Y) &&
             std::isfinite(hits_cog[i].Y) && std::isfinite(hits_cog[i].Y))

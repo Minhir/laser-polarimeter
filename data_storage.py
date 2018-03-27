@@ -109,7 +109,7 @@ class ChunkStorage:
 
                 freq = depolarizer.fmap[ind][1]
                 if freq != 0:
-                    return depolarizer.frequency_to_energy(freq, depolarizer._F0, depolarizer.harmonic_number)
+                    return depolarizer.frequency_to_energy(freq)
                 else:
                     return 0
 
@@ -162,6 +162,9 @@ class HistStorage:
         else:
             mean_ = np.zeros((self.X, self.Y), dtype=np.int32)
         return mean_.T
+
+    def get_events_num(self):
+        return np.sum(self.hists_)
 
 
 data_storage_ = ChunkStorage(config.asym_buffer_len)

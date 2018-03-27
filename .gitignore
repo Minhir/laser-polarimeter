@@ -1,4 +1,9 @@
 *.sw*
 *~
 *.pyc
+*.o
+*.so
+*.cxx
+GEM.py
+Message_pb2.py
 .idea/

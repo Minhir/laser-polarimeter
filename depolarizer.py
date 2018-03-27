@@ -37,11 +37,11 @@ class Depolarizer:
         self.update_thread = None
         self.message_id = 0
         self.is_fmap = False
-        self.fmap = []
+        self.fmap = []     # TODO: переделать на фикс. размер; во время поиска игнорировать события более чем 5 сек (?)
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
-        self.attenuation = self.get_attenuation()
+        self.attenuation = self.get_attenuation()   # TODO: from 7 to 60
         self.final = self.get_final()
         self.initial = self.get_initial()
         self.is_scan = self.get_is_scan()
@@ -191,10 +191,18 @@ class Depolarizer:
         for time_, freq in self.fmap:
             print(f"{time_} {freq}")
 
-    def frequency_to_energy(self, f, f0, n):
+    def frequency_to_energy(self, f, f0=None, n=None):
+        if f0 is None:
+            f0 = self._F0
+        if n is None:
+            n = self.harmonic_number
         return (f / f0 + n) * self._RD
 
-    def energy_to_frequency(self, E, f0, n):
+    def energy_to_frequency(self, E, f0=None, n=None):
+        if f0 is None:
+            f0 = self._F0
+        if n is None:
+            n = self.harmonic_number
         return (E / self._RD-n) * f0
 
     def update_status(self):
@@ -216,6 +224,29 @@ class Depolarizer:
             self.update_thread.start()
 
 
-depolarizer = Depolarizer('192.168.176.61', 9090)
-depolarizer.start_fmap()
-depolarizer.start_update()
+class MayBeCalled(object):
+    def __call__(self, *args, **kwargs):
+        return None
+
+
+class FakeDepolarizer:
+
+    def __getattr__(self, attr):
+        if attr in ["speed", "step", "initial", "final"]:
+            return 0
+        elif attr == "fmap":
+            return []
+        return MayBeCalled()
+
+    def __setattr__(self, attr, *val):
+        pass
+
+
+try:
+    depolarizer = Depolarizer('192.168.176.61', 9090)
+    depolarizer.start_fmap()
+    depolarizer.start_update()
+except ConnectionRefusedError as e:
+    print(e)
+    print("Не удалось подключиться к деполяризатору")
+    depolarizer = FakeDepolarizer()
