@@ -177,7 +177,8 @@ class Depolarizer:
     def start_fmap(self):
         if not self.is_fmap:
             self.is_fmap = True
-            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update', daemon=True)
+            self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update')
+            self.fmap_thread.daemon=True
             self.fmap_thread.start()
             print("fmap tread started")
 
@@ -224,6 +225,7 @@ class Depolarizer:
     def start_update(self):
         if self.update_thread is None:
             self.update_thread = Thread(target=self.update_status, name='depol status update')
+            self.update_thread.daemon=True
             self.update_thread.start()
 
 
@@ -249,6 +251,8 @@ try:
     depolarizer = Depolarizer('192.168.176.61', 9090)
     depolarizer.start_fmap()
     depolarizer.start_update()
+except Exception as e:
+    print(e)
 except ConnectionRefusedError as e:
     print(e)
     print("Unable to connect to depolarizer")
