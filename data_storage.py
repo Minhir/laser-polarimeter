@@ -100,7 +100,7 @@ class ChunkStorage:
 
             # подшивка точки деполяризатора
 
-            def find_closest():
+            def find_closest():         # TODO: Перенести в деполяризатор
                 ind = bisect.bisect_right(depolarizer.fmap,
                                           (mean_time, 0),
                                           lo=0, hi=len(depolarizer.fmap)) - 1
@@ -149,19 +149,13 @@ class HistStorage:
         self.hists_.append(hist_)
 
     def get_hist(self, left=0, right=None):
-        if right is None:
-            right = self.buffer_len
-        else:
-            right = min(right, self.buffer_len)
+        right = self.buffer_len if right is None else min(right, self.buffer_len)
+        left, right = int(left), int(right)
 
         if left > right:
             raise ValueError(f'left (={left}) >= right (={right})')
 
-        if len(self.hists_[left:right]):   # Проверка на пустоту
-            mean_ = np.mean(self.hists_[left:right], axis=0)  # TODO: проверить axis mean
-        else:
-            mean_ = np.zeros((self.X, self.Y), dtype=np.int32)
-        return mean_.T
+        return np.mean(self.hists_[left:right], axis=0).T  # TODO: проверить axis mean. Проверять на пустоту?
 
     def get_events_num(self):
         return np.sum(self.hists_)
