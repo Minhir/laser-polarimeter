@@ -4,6 +4,7 @@ import socket
 import struct
 import time
 from threading import Thread, Lock
+import bisect
 
 # some helper function to send and receive message
 
@@ -248,6 +249,16 @@ class Depolarizer:
         if n is None:
             n = self.harmonic_number
         return (E / self._RD - n) * f0
+
+    def find_closest_energy(self, time_):
+        ind = bisect.bisect_right(self.fmap,
+                                  (time_, 0),
+                                  lo=0, hi=len(self.fmap)) - 1
+        if ind == -1:
+            return 0
+
+        freq = self.fmap[ind][1]
+        return self.frequency_to_energy(freq) if freq != 0 else 0
 
     def update_status(self):
         while True:

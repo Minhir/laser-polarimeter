@@ -1,5 +1,3 @@
-from operator import setitem
-
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool
@@ -39,7 +37,6 @@ def app(doc):
         hist_source.data = {'image': [img]}
 
     # График асимметрии
-    # TODO выделение точки
 
     asym_fig = figure(plot_width=width_, plot_height=height_,
                       tools="box_zoom, wheel_zoom, pan, save, reset, hover",
@@ -301,7 +298,7 @@ def app(doc):
         for param in m.parameters:
             fit_handler["input_fields"][param] = {}
             fit_handler["input_fields"][param]["fix"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width + delta_width, height=t_height, value="1")
             fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width + delta_width, height=t_height)
             fit_handler["input_fields"][param]["bounds"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
             fit_handler["input_fields"][param]["start"] = TextInput(width=t_width + delta_width, height=t_height)
@@ -317,17 +314,20 @@ def app(doc):
 
         return column(rows)
 
+    def clear_fit():
+        if fit_handler["fit_line"] in asym_fig.renderers:
+            asym_fig.renderers.remove(fit_handler["fit_line"])
+
+    energy_window = Div(text="Частота: , энергия: ")
+    clear_fit_button = Button(label="Clear", width=200)
+    clear_fit_button.on_click(clear_fit)
+
     def fit_callback():
         if fit_handler["fit_line"] in asym_fig.renderers:
             asym_fig.renderers.remove(fit_handler["fit_line"])
 
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
-        print()
-        print()
-        print()
-        print(name)
-        print({name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
         m = create_fit_func(name,
                             asym_source.data['time'],
                             asym_source.data[line_name],
@@ -335,10 +335,16 @@ def app(doc):
                             {name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
 
         fit(m)
-        a = m.get_param_states()
-        fit_handler["fit_line"] = asym_fig.line(asym_source.data['time'],       # TODO: добавить возможность менять кол-во точек
-                                                get_line(name, asym_source.data['time'],
-                                                [x['value'] for x in a]), color="red", line_width=5)
+        params_ = m.get_param_states()
+        for x in params_:
+            fit_handler["input_fields"][x['name']]["Init value"].value = str(x['value'])
+            if x['name'] == "depol_time":
+                freq = depolarizer.find_closest_energy(x['value'])
+                energy_window.text = f"<p>Частота: {freq}, энергия: {depolarizer.frequency_to_energy(freq)}</p>"
+
+        fit_handler["fit_line"] = asym_fig.line(asym_source.data['time'],  # TODO: менять кол-во точек
+                                                get_line(name, asym_source.data['time'], [x['value'] for x in params_]),
+                                                color="red", line_width=5)
 
     fit_button.on_click(fit_callback)
 
@@ -353,10 +359,11 @@ def app(doc):
 
     row_21 = column(hist_fig, hist_slider)
     column_21 = column(widgets_)
-    column_22 = column(fit_button, fit_line_selection_widget, fit_function_selection_widget, make_parameters_table(None, None, None))
+    column_22 = column(fit_button, clear_fit_button, fit_line_selection_widget, fit_function_selection_widget,
+                       energy_window, make_parameters_table(None, None, None))
 
     def rebuild_table(attr, old, new):
-        column_22.children[3] = make_parameters_table(None, None, None)
+        column_22.children[5] = make_parameters_table(None, None, None)
 
     fit_function_selection_widget.on_change("value", rebuild_table)
 
