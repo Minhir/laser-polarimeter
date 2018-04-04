@@ -80,7 +80,7 @@ def app(doc):
     hover = asym_fig.select(dict(type=HoverTool))
     hover.tooltips = [("Время", "@time"), ("Частота деполяризации", "@depol_freq")]
 
-    period_input = TextInput(value='1', title="Время усреднения (с):")
+    period_input = TextInput(value='300', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': 1}
 
     def update_data():
@@ -188,18 +188,15 @@ def app(doc):
                   "attenuation": (depol_input_attenuation, depolarizer.set_attenuation)}
 
     def change_value_generator(value_name):
-        depol_input, depol_set = depol_dict[value_name]
-        depol_current = depolarizer.get_by_name(value_name)
-
         def change_value(attr, old, new):
-            print('Hey')
-            if old == new:
-                # print("a")
+            if float(old) == float(new):
                 return
 
+            depol_input, depol_set = depol_dict[value_name]
+            depol_current = depolarizer.get_by_name(value_name)
             try:
                 if value_name in ['harmonic_number', 'attenuation']:
-                    new_val = int(float(new))
+                    new_val = float(new)
                 elif value_name in ['speed', 'step']:
                     new_val = depolarizer.energy_to_frequency(float(new), n=0)
                 else:
@@ -220,7 +217,6 @@ def app(doc):
                     depol_input.value = str(depolarizer.frequency_to_energy(depol_current, n=0))
                 else:
                     depol_input.value = str(depolarizer.frequency_to_energy(depol_current))
-
                 print(e)
 
         return change_value
@@ -233,7 +229,6 @@ def app(doc):
     depol_input_final.on_change('value', change_value_generator("final"))
 
     def update_depol_status():  # TODO: самому пересчитывать начало и конец
-        # print(f"Hramonic = {depol_input_harmonic_number.value}")
         depol_start_stop_buttons.active = (0 if depolarizer.is_scan else 1)
 
         depol_status_window.text = f"""
@@ -243,16 +238,16 @@ def app(doc):
 
         for value_name in ['speed', 'step']:
             depol_input, _ = depol_dict[value_name]
-            depol_value = str(depolarizer.frequency_to_energy(depolarizer.get_by_name(value_name), n=0))
-            if depol_input.value != depol_value:
-                depol_input.value = depol_value
+            depol_value = depolarizer.frequency_to_energy(depolarizer.get_by_name(value_name), n=0)
+            if float(depol_input.value) != depol_value:
+                depol_input.value = str(depol_value)
 
         for value_name in ['initial', 'final']:
             depol_input, _ = depol_dict[value_name]
             freq = depolarizer.get_by_name(value_name)
-            energy = str(depolarizer.frequency_to_energy(freq))
-            if depol_input.value != energy:
-                depol_input.value = energy
+            energy = depolarizer.frequency_to_energy(freq)
+            if float(depol_input.value) != energy:
+                depol_input.value = str(energy)
             else:
                 name = depol_input.title.split(' ')[0]
                 depol_input.title = name + f" ({'%.1f' % freq} Гц):"
@@ -260,9 +255,8 @@ def app(doc):
         for value_name in ['attenuation', 'harmonic_number']:
             depol_input, _ = depol_dict[value_name]
             depol_value = depolarizer.get_by_name(value_name)
-            # print(f"Depol val = {depol_value}")
-            if depol_input.value != depol_value:
-                depol_input.value = str(depol_value)
+            if float(depol_input.value) != depol_value:
+                depol_input.value = str(int(depol_value))
 
     depol_start_stop_buttons.on_change("active",
                                        lambda attr, old, new: (depolarizer.start_scan() if new == 0 else depolarizer.stop_scan()))
@@ -369,6 +363,9 @@ def app(doc):
     row_22 = row(column_21, column_22)
     column_2 = column(row_21, row_22, width=width_ + 50)
     layout_ = row(column_1, column_2)
+
+    def pr_har():
+        print(depolarizer.get_by_name("harmonic_number"))
 
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
