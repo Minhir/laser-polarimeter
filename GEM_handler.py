@@ -30,7 +30,7 @@ class GEM_handler(threading.Thread):
         hist_storage_.add_as_array([i.x_cog for i in data], [i.y_cog for i in data])  # TODO добавить обе реконструкции
 
         delta_time = 0.1
-        first = True
+        start_time = None
         x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
         x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
         counter_l, counter_r = 0, 0
@@ -39,9 +39,8 @@ class GEM_handler(threading.Thread):
         for hit_struct in chain(self.buf, data):
             end_point += 1
 
-            if first:
+            if start_time is None:
                 start_time = hit_struct.timestamp
-                first = False
 
             if hit_struct.timestamp <= start_time + delta_time:
                 if hit_struct.polarity == 0:

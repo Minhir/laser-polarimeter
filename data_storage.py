@@ -118,8 +118,8 @@ class ChunkStorage:
             # print(f"Time: {time.time() - t}")  # замер времени. Удалить.
             # подшивка точки деполяризатора
 
-        print(time.time() - t)  # замер времени. Удалить.
-        print(f"{100 * len(self.data_) / self.data_.maxlen} %")
+        # print(time.time() - t)  # замер времени. Удалить.
+        # print(f"{100 * len(self.data_) / self.data_.maxlen} %")
 
         return points, last_time
 

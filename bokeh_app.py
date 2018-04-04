@@ -2,16 +2,17 @@ from operator import setitem
 
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool
 from bokeh.models.callbacks import CustomJS
-from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs
+from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
+from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
 
 from math import pi
 from data_storage import hist_storage_, data_storage_, names
 from depolarizer import depolarizer
 from config import config
 import cpp.GEM as GEM
-from fit import fit, get_line
+from fit import fit, get_line, create_fit_func
 
 
 def app(doc):
@@ -34,14 +35,14 @@ def app(doc):
     def hist_update():
         img = hist_storage_.get_hist(hist_buffer_len - hist_slider.value[1],
                                                              hist_buffer_len - hist_slider.value[0])# TODO: починить
-        print(f"sum = {hist_storage_.get_events_num()}")
+        # print(f"sum = {hist_storage_.get_events_num()}")
         hist_source.data = {'image': [img]}
 
     # График асимметрии
     # TODO выделение точки
 
     asym_fig = figure(plot_width=width_, plot_height=height_,
-                      tools="box_zoom, wheel_zoom, pan, save, reset",
+                      tools="box_zoom, wheel_zoom, pan, save, reset, hover",
                       active_scroll="wheel_zoom")
 
     asym_source = ColumnDataSource({key: [] for key in names})
@@ -76,7 +77,10 @@ def app(doc):
     depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
 
-    period_input = TextInput(value=str(60), title="Время усреднения:")
+    hover = asym_fig.select(dict(type=HoverTool))
+    hover.tooltips = [("Время", "@time"), ("Частота деполяризации", "@depol_freq")]
+
+    period_input = TextInput(value='1', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': 1}
 
     def update_data():
@@ -150,85 +154,220 @@ def app(doc):
     # TODO: часы
     # TODO: временной офсет
 
-    depol_status_window = Div(text="""Статус деполяризатора.
-    Выключен""", width=200, height=100)
+    depol_status_window = Div(text="Инициализация...", width=500, height=500)
 
-    depol_button_start = Button(label="Включить сканирование", width=200)
-    depol_button_stop = Button(label="Выключить сканирование", width=200)
+    depol_start_stop_buttons = RadioButtonGroup(labels=["Старт", "Стоп"],
+                                                active=(0 if depolarizer.is_scan else 1))
     fake_depol_button = Button(label="Деполяризовать", width=200)
-    fit_button = Button(label="FIT", width=200)
-
-    def fit_callback():
-        m = fit(asym_source.data['time'], asym_source.data['y_online_asym'], [1 for i in range(len(asym_source.data['time']))])
-        a = m.get_param_states()
-        print(a)
-        asym_fig.circle(asym_source.data['time'], get_line(asym_source.data['time'], [x['value'] for x in a]), size=8, color="red")
 
     fake_depol_button.on_click(GEM.depolarize)
-    fit_button.on_click(fit_callback)
 
-    depol_input_speed = TextInput(value=str(depolarizer.speed), title="Скорость:")
-    depol_input_step = TextInput(value=str(depolarizer.step), title="Шаг:")
-    depol_input_initial = TextInput(value=str(depolarizer.initial), title="Начало:")
-    depol_input_final = TextInput(value=str(depolarizer.final), title="Конец:")
-    depol_input_harmonic = TextInput(value=str(depolarizer.harmonic_number), title="Номер гармоники")
+    depol_input_harmonic_number = TextInput(value=str('%.1f' % depolarizer.harmonic_number),
+                                            title=f"Номер гармоники", width=150)
+
+    depol_input_attenuation = TextInput(value=str('%.1f' % depolarizer.attenuation),
+                                            title=f"Аттенюатор (дБ)", width=150)
+
+    depol_input_speed = TextInput(value=str(depolarizer.frequency_to_energy(depolarizer.speed, n=0)),
+                                  title=f"Скорость ({'%.1f' % depolarizer.speed} Гц):", width=150)
+
+    depol_input_step = TextInput(value=str(depolarizer.frequency_to_energy(depolarizer.step, n=0)),
+                                 title=f"Шаг ({'%.1f' % depolarizer.step} Гц):", width=150)
+
+    depol_input_initial = TextInput(value=str(depolarizer.frequency_to_energy(depolarizer.initial)),
+                                    title=f"Начало ({'%.1f' % depolarizer.initial} Гц):", width=150)
+
+    depol_input_final = TextInput(value=str(depolarizer.frequency_to_energy(depolarizer.final)),
+                                  title=f"Конец ({'%.1f' % depolarizer.final} Гц):", width=150)
+
+    depol_dict = {"speed": (depol_input_speed, depolarizer.set_speed),
+                  "step": (depol_input_step, depolarizer.set_step),
+                  "initial": (depol_input_initial, depolarizer.set_initial),
+                  "final": (depol_input_final, depolarizer.set_final),
+                  "harmonic_number": (depol_input_harmonic_number, depolarizer.set_harmonic_number),
+                  "attenuation": (depol_input_attenuation, depolarizer.set_attenuation)}
 
     def change_value_generator(value_name):
-        depol_dict = {"speed": (depol_input_speed, depolarizer.speed, depolarizer.set_speed),
-                      "step": (depol_input_step, depolarizer.step, depolarizer.set_step),
-                      "initial": (depol_input_initial, depolarizer.initial, depolarizer.set_initial),
-                      "final": (depol_input_final, depolarizer.final, depolarizer.set_final),
-                      "harmonic": (depol_input_harmonic, depolarizer.harmonic_number, depolarizer.set_harmonic_number)}
-
-        depol_input, depol_current, depol_set = depol_dict[value_name]
+        depol_input, depol_set = depol_dict[value_name]
+        depol_current = depolarizer.get_by_name(value_name)
 
         def change_value(attr, old, new):
+            print('Hey')
             if old == new:
+                # print("a")
                 return
-            try:
-                if value_name == 'harmonic':
-                    val = int(new)
-                else:
-                    val = float(new)
 
-                if depol_current == val:
+            try:
+                if value_name in ['harmonic_number', 'attenuation']:
+                    new_val = int(float(new))
+                elif value_name in ['speed', 'step']:
+                    new_val = depolarizer.energy_to_frequency(float(new), n=0)
+                else:
+                    new_val = depolarizer.energy_to_frequency(float(new))
+
+                if depol_current == new_val:
                     return
 
-                if config.depol_bounds[value_name][0] < val < config.depol_bounds[value_name][1]:
-                    depol_set(val)
-                else:
-                    raise ValueError("Некорректное значение")
+                depol_set(new_val)
+                if value_name not in ['harmonic_number', 'attenuation']:
+                    name = depol_input.title.split(' ')[0]
+                    depol_input.title = name + f" ({'%.1f' % new_val} Гц):"
 
             except ValueError as e:
-                depol_input.value = str(depol_current)
+                if value_name in ['harmonic_number', 'attenuation']:
+                    depol_input.value = str(depol_current)
+                elif value_name in ['speed', 'step']:
+                    depol_input.value = str(depolarizer.frequency_to_energy(depol_current, n=0))
+                else:
+                    depol_input.value = str(depolarizer.frequency_to_energy(depol_current))
+
                 print(e)
 
         return change_value
 
+    depol_input_harmonic_number.on_change('value', change_value_generator('harmonic_number'))
+    depol_input_attenuation.on_change('value', change_value_generator("attenuation"))
     depol_input_speed.on_change('value', change_value_generator("speed"))
     depol_input_step.on_change('value', change_value_generator("step"))
     depol_input_initial.on_change('value', change_value_generator("initial"))
     depol_input_final.on_change('value', change_value_generator("final"))
-    depol_input_harmonic.on_change('value', change_value_generator('harmonic'))
 
-    def update_depol_status():
-        if depolarizer.is_scan:
-            depol_button_start.button_type = "success"
-            depol_button_stop.button_type = "danger"
-        else:
-            depol_button_start.button_type = "danger"
-            depol_button_stop.button_type = "success"
+    def update_depol_status():  # TODO: самому пересчитывать начало и конец
+        # print(f"Hramonic = {depol_input_harmonic_number.value}")
+        depol_start_stop_buttons.active = (0 if depolarizer.is_scan else 1)
 
-    depol_button_start.on_click(depolarizer.start_scan)
-    depol_button_stop.on_click(depolarizer.stop_scan)
+        depol_status_window.text = f"""
+<p>Сканирование: 
+<font color={'"green">включено' if depolarizer.is_scan else '"red">выключено'}</font></p>
+<p/>Частота {"%.1f" % depolarizer.current_frequency} (Гц)</p>"""
+
+        for value_name in ['speed', 'step']:
+            depol_input, _ = depol_dict[value_name]
+            depol_value = str(depolarizer.frequency_to_energy(depolarizer.get_by_name(value_name), n=0))
+            if depol_input.value != depol_value:
+                depol_input.value = depol_value
+
+        for value_name in ['initial', 'final']:
+            depol_input, _ = depol_dict[value_name]
+            freq = depolarizer.get_by_name(value_name)
+            energy = str(depolarizer.frequency_to_energy(freq))
+            if depol_input.value != energy:
+                depol_input.value = energy
+            else:
+                name = depol_input.title.split(' ')[0]
+                depol_input.title = name + f" ({'%.1f' % freq} Гц):"
+
+        for value_name in ['attenuation', 'harmonic_number']:
+            depol_input, _ = depol_dict[value_name]
+            depol_value = depolarizer.get_by_name(value_name)
+            # print(f"Depol val = {depol_value}")
+            if depol_input.value != depol_value:
+                depol_input.value = str(depol_value)
+
+    depol_start_stop_buttons.on_change("active",
+                                       lambda attr, old, new: (depolarizer.start_scan() if new == 0 else depolarizer.stop_scan()))
+
+    # Подгонка
+
+    fit_line_selection_widget = Select(title="Fitting line:", value="y_online_asym",
+                                       options=["y_online_asym", "y_cog_asym"],
+                                       width=200)
+
+    fit_function_selection_widget = Select(title="Fitting function:", value="exp_jump",
+                                           options=["exp_jump", "const"],
+                                           width=200)
+
+    fit_button = Button(label="FIT", width=200)
+    fit_handler = {"fit_line": None, "input_fields": {}}
+
+    def make_parameters_table(attr, old, new):
+        line_name = fit_line_selection_widget.value
+        name = fit_function_selection_widget.value
+
+        t_width = 10
+        t_height = 8
+        delta_width = 0  # поправка на багу с шириной поля ввода
+        m = create_fit_func(name,
+                            asym_source.data['time'],
+                            asym_source.data[line_name],
+                            [i - j for i, j in zip(asym_source.data[line_name + '_up_error'],
+                            asym_source.data[line_name])],
+                            {})
+
+        rows = [row(Paragraph(text="name", width=t_width, height=t_height),
+                    Paragraph(text="Fix", width=t_width, height=t_height),
+                    Paragraph(text="Init value", width=t_width + delta_width, height=t_height),
+                    Paragraph(text="step (error)", width=t_width + delta_width, height=t_height),
+                    Paragraph(text="bounds", width=t_width, height=t_height),
+                    Paragraph(text="start", width=t_width + delta_width, height=t_height),
+                    Paragraph(text="stop", width=t_width + delta_width, height=t_height))]
+
+        fit_handler["input_fields"] = {}
+
+        for param in m.parameters:
+            fit_handler["input_fields"][param] = {}
+            fit_handler["input_fields"][param]["fix"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["bounds"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["start"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["stop"] = TextInput(width=t_width + delta_width, height=t_height)
+
+            rows.append(row(Paragraph(text=param, width=t_width, height=t_height),
+                            fit_handler["input_fields"][param]["fix"],
+                            fit_handler["input_fields"][param]["Init value"],
+                            fit_handler["input_fields"][param]["step (error)"],
+                            fit_handler["input_fields"][param]["bounds"],
+                            fit_handler["input_fields"][param]["start"],
+                            fit_handler["input_fields"][param]["stop"]))
+
+        return column(rows)
+
+    def fit_callback():
+        if fit_handler["fit_line"] in asym_fig.renderers:
+            asym_fig.renderers.remove(fit_handler["fit_line"])
+
+        name = fit_function_selection_widget.value
+        line_name = fit_line_selection_widget.value
+        print()
+        print()
+        print()
+        print(name)
+        print({name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
+        m = create_fit_func(name,
+                            asym_source.data['time'],
+                            asym_source.data[line_name],
+                            [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])],
+                            {name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
+
+        fit(m)
+        a = m.get_param_states()
+        fit_handler["fit_line"] = asym_fig.line(asym_source.data['time'],       # TODO: добавить возможность менять кол-во точек
+                                                get_line(name, asym_source.data['time'],
+                                                [x['value'] for x in a]), color="red", line_width=5)
+
+    fit_button.on_click(fit_callback)
+
+     # {depol_time = 50, P0 = 0, Pmax = 10, tau = 14, DELTA = 0, T = 1}
 
     # Инициализация bokeh app
     column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
-    widgets_ = WidgetBox(depol_button_start, depol_button_stop, fake_depol_button, fit_button)
-    column_2 = column(hist_fig, hist_slider, widgets_,
-                      depol_input_harmonic, depol_input_speed,
-                      depol_input_step, depol_input_initial,
-                      depol_input_final, depol_status_window)
+    widgets_ = WidgetBox(depol_start_stop_buttons, fake_depol_button,
+                         depol_input_harmonic_number, depol_input_attenuation, depol_input_speed,
+                         depol_input_step, depol_input_initial,
+                         depol_input_final, depol_status_window)
+
+    row_21 = column(hist_fig, hist_slider)
+    column_21 = column(widgets_)
+    column_22 = column(fit_button, fit_line_selection_widget, fit_function_selection_widget, make_parameters_table(None, None, None))
+
+    def rebuild_table(attr, old, new):
+        column_22.children[3] = make_parameters_table(None, None, None)
+
+    fit_function_selection_widget.on_change("value", rebuild_table)
+
+    row_22 = row(column_21, column_22)
+    column_2 = column(row_21, row_22, width=width_ + 50)
     layout_ = row(column_1, column_2)
 
     doc.add_root(layout_)

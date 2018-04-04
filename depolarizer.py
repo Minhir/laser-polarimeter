@@ -42,15 +42,18 @@ class Depolarizer:
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
-        self.attenuation = self.get_attenuation()   # TODO: from 7 to 60
+        self.attenuation = self.get_attenuation()
+        self.harmonic_number = self.get_harmonic_number()
         self.final = self.get_final()
+        self.final_energy = self.frequency_to_energy(self.final)
         self.initial = self.get_initial()
+        self.initial_energy = self.frequency_to_energy(self.initial)
         self.is_scan = self.get_is_scan()
         self.speed = self.get_speed()
-        self.harmonic_number = self.get_harmonic_number()
         self.step = self.get_step()
         self.revolution_frequency = self.get_revolution_frequency()
         self.state = self.get_state()
+        self.current_frequency = self.get_current_frequency()
 
     def send(self, message):
         with lock_send:
@@ -70,9 +73,11 @@ class Depolarizer:
         return m.status == Message.OK
 
     def start_scan(self):
+        self.is_scan = True
         return self.do(Message.START)
 
     def stop_scan(self):
+        self.is_scan = False
         return self.do(Message.STOP)
 
     def continue_scan(self):
@@ -100,7 +105,8 @@ class Depolarizer:
         return m.data
 
     def get_state(self):
-        return self.get(Message.STATE)
+        self.state = self.get(Message.STATE)
+        return self.state
 
     def is_off(self):
         state = self.get_state()
@@ -111,51 +117,83 @@ class Depolarizer:
         return state == Message.ON or state == Message.SCAN
 
     def get_is_scan(self):
-        return self.get_state() == Message.SCAN
+        self.is_scan = (self.get_state() == Message.SCAN)
+        return self.is_scan
 
     def get_initial(self):
-        return self.get(Message.INITIAL)
+        self.initial = self.get(Message.INITIAL)
+        self.initial_energy = self.frequency_to_energy(self.initial)
+        return self.initial
 
     def get_final(self):
-        return self.get(Message.FINAL)
+        self.final = self.get(Message.FINAL)
+        self.final_energy = self.frequency_to_energy(self.final)
+        return self.final
       
     def get_step(self):
-        return self.get(Message.STEP)
+        self.step = self.get(Message.STEP)
+        return self.step
 
     def get_speed(self):
-        return self.get(Message.SPEED)
+        self.speed = self.get(Message.SPEED)
+        return self.speed
 
     def get_attenuation(self):
-        return self.get(Message.ATTENUATION)
+        self.attenuation = self.get(Message.ATTENUATION)
+        return self.attenuation
 
     def get_current_frequency(self):
-        return self.get(Message.CURRENT)
+        self.current_frequency = self.get(Message.CURRENT)
+        return self.current_frequency
 
     def get_harmonic_number(self):
-        return self.get(Message.HARMONIC_NUMBER)
+        self.harmonic_number = self.get(Message.HARMONIC_NUMBER)
+        return self.harmonic_number
 
     def get_revolution_frequency(self):
-        return self.get(Message.REVOLUTION_FREQUENCY)
+        self.revolution_frequency = self.get(Message.REVOLUTION_FREQUENCY)
+        return self.revolution_frequency
 
     def set_initial(self, data):
-        return self.set(Message.INITIAL, data)
+        self.initial = data
+        self.initial_energy = self.frequency_to_energy(self.initial)
+        return self.set(Message.INITIAL, self.initial)
+
+    def set_initial_energy(self, data):
+        self.initial_energy = data
+        self.initial = self.energy_to_frequency(data)
+        return self.set(Message.INITIAL, self.initial)
 
     def set_final(self, data):
-        return self.set(Message.FINAL, data)
-      
+        self.final = data
+        self.final_energy = self.frequency_to_energy(self.final)
+        return self.set(Message.FINAL, self.final)
+
+    def set_final_energy(self, data):
+        self.final_energy = data
+        self.final = self.energy_to_frequency(data)
+        return self.set(Message.FINAL, self.final)
+
     def set_step(self, data):
+        self.step = data
         return self.set(Message.STEP, data)
 
     def set_speed(self, data):
+        self.speed = data
         return self.set(Message.SPEED, data)
 
     def set_attenuation(self, data):
+        self.attenuation = data
         return self.set(Message.ATTENUATION, data)
 
     def set_harmonic_number(self, data):
+        self.harmonic_number = data
+        self.set_initial(self.energy_to_frequency(self.initial_energy))
+        self.set_final(self.energy_to_frequency(self.final_energy))
         return self.set(Message.HARMONIC_NUMBER, data)
 
     def set_revolution_frequency(self, data):
+        self.revolution_frequency = data
         return self.set(Message.REVOLUTION_FREQUENCY, data)
 
     def get_fmap_in_thread(self):
@@ -208,25 +246,32 @@ class Depolarizer:
             f0 = self._F0
         if n is None:
             n = self.harmonic_number
-        return (E / self._RD-n) * f0
+        return (E / self._RD - n) * f0
 
     def update_status(self):
         while True:
             time.sleep(1)
-            self.attenuation = self.get_attenuation()
-            self.final = self.get_final()
-            self.initial = self.get_initial()
-            self.is_scan = self.get_is_scan()
-            self.speed = self.get_speed()
-            self.harmonic_number = self.get_harmonic_number()
-            self.step = self.get_step()
-            self.revolution_frequency = self.get_revolution_frequency()
-            self.state = self.get_state()
+            # self.attenuation = self.get_attenuation()
+            # self.final = self.get_final()
+            # self.initial = self.get_initial()
+            # self.speed = self.get_speed()
+            # self.harmonic_number = self.get_harmonic_number()
+            # self.step = self.get_step()
+            # self.revolution_frequency = self.get_revolution_frequency()
+            # self.state = self.get_state()
+            self.get_is_scan()
+            self.get_current_frequency()
+
+    def get_by_name(self, name):
+        if name in self.__dict__:
+            return self.__dict__[name]
+        else:
+            return None
 
     def start_update(self):
         if self.update_thread is None:
             self.update_thread = Thread(target=self.update_status, name='depol status update')
-            self.update_thread.daemon=True
+            self.update_thread.daemon = True
             self.update_thread.start()
 
 

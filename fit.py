@@ -1,5 +1,6 @@
 from iminuit import Minuit, describe, Struct
 from math import exp
+import inspect
 
 
 class GenericChi2:
@@ -10,7 +11,7 @@ class GenericChi2:
         self.f = f
         args = describe(f)  # extract function signature
         self.func_code = Struct(
-                locals=args[1:],   # dock off independent param
+                co_varnames=args[1:],   # dock off independent param
                 co_argcount=len(args)-1
             )
 
@@ -33,23 +34,36 @@ def exp_jump(time, depol_time, P0, Pmax, tau, DELTA, T):
 
     P1 = polarization(P0, Pmax, tau, depol_time)  # polarization before jump
 
-    if DELTA == -100:
-        P2 = 0
-    else:
-        P2 = P1 + DELTA  # polarization after jump;
+    P2 = 0 if DELTA == -100 else P1 + DELTA
 
     if time < depol_time + T / 2:
-
         return P1 + (P2 - P1) * (time - depol_time + T / 2) / T
 
-    return polarization(P2,Pmax, tau, time - depol_time)
+    return polarization(P2, Pmax, tau, time - depol_time)
 
 
-def fit(x, y, y_err):
-    m = Minuit(GenericChi2(exp_jump, x, y, y_err), depol_time=50, P0=0, Pmax=10, tau=14, DELTA=0, T=1)
+def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
+    if name == "exp_jump":
+        m = Minuit(GenericChi2(exp_jump, x, y, y_err), **kwargs)
+        # params = list(inspect.signature(exp_jump).parameters.keys())
+    elif name == "const":
+        m = Minuit(GenericChi2(const, x, y, y_err), **kwargs)
+        # params = list(inspect.signature(const).parameters.keys())
+    else:
+        m = None
+    return m
+
+
+def fit(m: Minuit):
     m.migrad()
     # m.print_param()
     return m
 
-def get_line(x, params):
-    return [exp_jump(i, *params) for i in x]
+
+def get_line(name, x, params):
+    if name == "exp_jump":
+        return [exp_jump(i, *params) for i in x]
+    elif name == "const":
+        return [const(i, *params) for i in x]
+    else:
+        return None
