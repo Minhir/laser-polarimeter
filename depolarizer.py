@@ -289,13 +289,14 @@ class Depolarizer:
 
 class MayBeCalled(object):
     def __call__(self, *args, **kwargs):
-        return None
+        return 0
 
 
 class FakeDepolarizer:
 
     def __getattr__(self, attr):
-        if attr in ["speed", "step", "initial", "final"]:
+        if attr in ["speed", "step", "initial", "final", "harmonic_number", "attenuation",
+                    "is_scan", "current_frequency"]:
             return 0
         elif attr == "fmap":
             return []

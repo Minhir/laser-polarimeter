@@ -1,6 +1,6 @@
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
@@ -14,6 +14,10 @@ from fit import fit, get_line, create_fit_func
 
 
 def app(doc):
+
+    # вспомогательные глобальные
+
+    fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": []}
 
     # Гистограмма пятна
     img = hist_storage_.get_hist()
@@ -39,10 +43,30 @@ def app(doc):
     # График асимметрии
 
     asym_fig = figure(plot_width=width_, plot_height=height_,
-                      tools="box_zoom, wheel_zoom, pan, save, reset, hover",
-                      active_scroll="wheel_zoom")
+                      tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
+                      active_scroll="wheel_zoom", active_drag="xbox_select")
+
+    def draw_selected_area(attr, old, new):
+        if len(new.indices) <= 0:
+            return
+        fit_handler["fit_indices"] = sorted(new.indices)
+        left_, right_ = fit_handler["fit_indices"][0], fit_handler["fit_indices"][-1]
+        left_, right_ = asym_source.data['time'][left_], asym_source.data['time'][right_]
+        BoxAnnotation(plot=asym_fig, left=left_, right=right_)
+
+        asym_fig_box_select = (BoxAnnotation(left=left_,
+                                             name="fit_zone",
+                                             right=right_,
+                                             fill_alpha=0.1, fill_color='red'))
+
+        asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']  # TODO: fix не удаляет
+        asym_fig.add_layout(asym_fig_box_select)
+
+    asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
+    asym_box_select_overlay.line_color = "firebrick"
 
     asym_source = ColumnDataSource({key: [] for key in names})
+    asym_source.on_change('selected', draw_selected_area)
 
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
 
@@ -56,8 +80,10 @@ def app(doc):
     asym_fig.add_layout(y_cog_asym_error)
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=8, color="black", legend="ONE")
-    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=8, color="green", legend="COG")
+    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black", legend="ONE",
+                                    nonselection_alpha=1, nonselection_color="black")
+    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green", legend="COG",
+                                 nonselection_alpha=1, nonselection_color="green")
 
     y_online_asym.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
                                                    code="x.visible = cb_obj.visible"))
@@ -130,7 +156,8 @@ def app(doc):
                                    upper=fig_name + type_ + '_up_error',
                                    lower=fig_name + type_ + '_down_error'))
 
-            fig.circle('time', fig_name + type_, source=asym_source, size=8, color="black")
+            fig.circle('time', fig_name + type_, source=asym_source, size=5, color="black",
+                       nonselection_alpha=1, nonselection_color="black")
             fig.yaxis[0].axis_label = f"<{fig_name + type_}> [мм]"
             fig.xaxis[0].axis_label = 'Время'
 
@@ -269,7 +296,6 @@ def app(doc):
                                            width=200)
 
     fit_button = Button(label="FIT", width=200)
-    fit_handler = {"fit_line": None, "input_fields": {}}
 
     def make_parameters_table(attr, old, new):
         line_name = fit_line_selection_widget.value
@@ -328,23 +354,32 @@ def app(doc):
 
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
+        fit_indices = fit_handler["fit_indices"]
+        if fit_indices:
+            x_axis = [asym_source.data['time'][i] for i in fit_indices]
+            y_axis = [asym_source.data[line_name][i] for i in fit_indices]
+            y_errors = [asym_source.data[line_name + '_up_error'][i] - asym_source.data[line_name][i] for i in fit_indices]
+        else:
+            x_axis = asym_source.data['time']
+            y_axis = asym_source.data[line_name]
+            y_errors = [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])]
         m = create_fit_func(name,
-                            asym_source.data['time'],
-                            asym_source.data[line_name],
-                            [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])],
+                            x_axis,
+                            y_axis,
+                            y_errors,
                             {name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
 
-        fit(m)
+        fit(m)  # TODO: в отдельный поток?
         params_ = m.get_param_states()
-        for x in params_:
-            fit_handler["input_fields"][x['name']]["Init value"].value = str(x['value'])
-            if x['name'] == "depol_time":
-                freq = depolarizer.find_closest_energy(x['value'])
+        for i in params_:
+            fit_handler["input_fields"][i['name']]["Init value"].value = str(i['value'])
+            if i['name'] == "depol_time":
+                freq = depolarizer.find_closest_energy(i['value'])
                 energy_window.text = f"<p>Частота: {freq}, энергия: {depolarizer.frequency_to_energy(freq)}</p>"
 
-        fit_handler["fit_line"] = asym_fig.line(asym_source.data['time'],  # TODO: менять кол-во точек
+        fit_handler["fit_line"] = asym_fig.line(x_axis,  # TODO: менять кол-во точек
                                                 get_line(name, asym_source.data['time'], [x['value'] for x in params_]),
-                                                color="red", line_width=5)
+                                                color="red", line_width=2)
 
     fit_button.on_click(fit_callback)
 

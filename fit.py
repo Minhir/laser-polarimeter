@@ -45,10 +45,8 @@ def exp_jump(time, depol_time, P0, Pmax, tau, DELTA, T):
 def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
     if name == "exp_jump":
         m = Minuit(GenericChi2(exp_jump, x, y, y_err), **kwargs)
-        # params = list(inspect.signature(exp_jump).parameters.keys())
     elif name == "const":
         m = Minuit(GenericChi2(const, x, y, y_err), **kwargs)
-        # params = list(inspect.signature(const).parameters.keys())
     else:
         m = None
     return m
