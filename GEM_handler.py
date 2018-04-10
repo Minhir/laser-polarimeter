@@ -36,11 +36,19 @@ class GEM_handler(threading.Thread):
         counter_l, counter_r = 0, 0
         end_point = 0
 
+        if len(data) != 0:      # TODO: првоерить костыль
+            end_time = data[-1].timestamp
+            if self.start_time is None:
+                self.start_time = data[0].timestamp
+        else:
+            return
+
         for hit_struct in chain(self.buf, data):
+            if self.start_time + delta_time > end_time:
+                break
             end_point += 1
 
-            if self.start_time is None:
-                self.start_time = hit_struct.timestamp
+
 
             if hit_struct.timestamp < self.start_time + delta_time:
                 if hit_struct.polarity == 0:
