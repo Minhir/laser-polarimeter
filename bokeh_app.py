@@ -1,6 +1,6 @@
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
@@ -42,9 +42,9 @@ def app(doc):
 
     # График асимметрии
 
-    asym_fig = figure(plot_width=width_, plot_height=height_,
+    asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
-                      active_scroll="wheel_zoom", active_drag="xbox_select")
+                      active_scroll="wheel_zoom", active_drag="pan")
 
     def draw_selected_area(attr, old, new):
         if len(new.indices) <= 0:
@@ -80,9 +80,9 @@ def app(doc):
     asym_fig.add_layout(y_cog_asym_error)
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black", legend="ONE",
+    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black",
                                     nonselection_alpha=1, nonselection_color="black")
-    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green", legend="COG",
+    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green",
                                  nonselection_alpha=1, nonselection_color="green")
 
     y_online_asym.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
@@ -91,7 +91,12 @@ def app(doc):
     y_cog_asym.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
                                                 code="x.visible = cb_obj.visible"))
 
-    asym_fig.legend.click_policy = "hide"
+    legend = Legend(items=[
+        ("ONE", [y_online_asym]),
+        ("COG", [y_cog_asym]),
+    ], location=(0, 0), click_policy="hide")
+
+    asym_fig.add_layout(legend, 'below')
 
     asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
@@ -123,7 +128,7 @@ def app(doc):
             depol_list.append(time)
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
-        asym_source.stream(points, rollover=10000)
+        asym_source.stream(points, rollover=500)
         # doc.add_next_tick_callback(partial(asym_plot, points))
 
     def change_period(attr, old, new):

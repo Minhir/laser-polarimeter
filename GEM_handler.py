@@ -20,6 +20,7 @@ class GEM_handler(threading.Thread):
         self.debug = debug
         self.sleeping_time = sleeping_time
         self.buf = []
+        self.start_time = None
 
     def get_data(self):
         if self.debug:
@@ -30,7 +31,6 @@ class GEM_handler(threading.Thread):
         hist_storage_.add_as_array([i.x_online for i in data], [i.y_online for i in data])  # TODO добавить обе реконструкции
 
         delta_time = 0.1
-        start_time = None
         x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
         x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
         counter_l, counter_r = 0, 0
@@ -39,10 +39,10 @@ class GEM_handler(threading.Thread):
         for hit_struct in chain(self.buf, data):
             end_point += 1
 
-            if start_time is None:
-                start_time = hit_struct.timestamp
+            if self.start_time is None:
+                self.start_time = hit_struct.timestamp
 
-            if hit_struct.timestamp < start_time + delta_time:
+            if hit_struct.timestamp < self.start_time + delta_time:
                 if hit_struct.polarity == 0:
                     counter_l += 1
                     x_online_l += hit_struct.x_online
@@ -57,20 +57,18 @@ class GEM_handler(threading.Thread):
                     x_cog_r += hit_struct.x_cog
                     y_cog_r += hit_struct.y_cog
             else:
-                start_time += delta_time
-                if counter_l == 0 or counter_r == 0:
-                    continue
-
-                data_storage_.add((start_time - delta_time / 2,
-                                   x_online_l / counter_l, y_online_l / counter_l,
-                                   x_online_r / counter_r, y_online_r / counter_r,
-                                   x_cog_l    / counter_l, y_cog_l    / counter_l,
-                                   x_cog_r    / counter_r, y_cog_r    / counter_r,
-                                   x_online_l / counter_l - x_online_r / counter_r,
-                                   y_online_l / counter_l - y_online_r / counter_r,
-                                   x_cog_l / counter_l - x_cog_r / counter_r,
-                                   y_cog_l / counter_l - y_cog_r / counter_r,
-                                   counter_l, counter_r))
+                self.start_time += delta_time
+                if counter_l != 0 and counter_r != 0:
+                    data_storage_.add((self.start_time - delta_time / 2,
+                                       x_online_l / counter_l, y_online_l / counter_l,
+                                       x_online_r / counter_r, y_online_r / counter_r,
+                                       x_cog_l    / counter_l, y_cog_l    / counter_l,
+                                       x_cog_r    / counter_r, y_cog_r    / counter_r,
+                                       x_online_l / counter_l - x_online_r / counter_r,
+                                       y_online_l / counter_l - y_online_r / counter_r,
+                                       x_cog_l / counter_l - x_cog_r / counter_r,
+                                       y_cog_l / counter_l - y_cog_r / counter_r,
+                                       counter_l, counter_r))
 
                 x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
                 x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0

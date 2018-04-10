@@ -5,7 +5,6 @@ import numpy as np
 from config import config
 from threading import Lock
 from depolarizer import depolarizer
-from experiment import experiment
 import time
 
 
@@ -130,7 +129,7 @@ class ChunkStorage:
 
             # print(f"Time: {time.time() - t}")  # замер времени. Удалить.
 
-        print(time.time() - t)  # замер времени. Удалить.
+        # print(time.time() - t)  # замер времени. Удалить.
         # print(f"{100 * len(self.data_) / self.data_.maxlen} %")
 
         return points, last_time
