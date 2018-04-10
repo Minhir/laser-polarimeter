@@ -42,7 +42,7 @@ class GEM_handler(threading.Thread):
             if start_time is None:
                 start_time = hit_struct.timestamp
 
-            if hit_struct.timestamp <= start_time + delta_time:
+            if hit_struct.timestamp < start_time + delta_time:
                 if hit_struct.polarity == 0:
                     counter_l += 1
                     x_online_l += hit_struct.x_online
@@ -80,7 +80,7 @@ class GEM_handler(threading.Thread):
         if end_point > len(self.buf):
             new_buf += data[end_point - len(self.buf):]
         else:
-            new_buf = self.buf[end_point:]
+            new_buf += self.buf[end_point:]
             new_buf += data[:]
         self.buf = new_buf
 

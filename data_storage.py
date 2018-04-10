@@ -84,12 +84,12 @@ class ChunkStorage:
             left = bisect.bisect_right(data_['time'], last_time)
             right = bisect.bisect_right(data_['time'], last_time + period)
 
+            last_time += period
             if left == right:
-                last_time += period
                 continue
 
             data = data_[left:right]
-            last_time = data['time'][-1]
+            print(data['counter_l'])
 
             for type_ in ['_l', '_r']:
                 name = 'rate' + type_
@@ -99,13 +99,16 @@ class ChunkStorage:
                 points[name].append(freq)
                 points[name + '_down_error'].append(freq - freq_error)
                 points[name + '_up_error'].append(freq + freq_error)
-                print(f"LOG + {1 - freq / config.laser_freq * 2}")
-                correct_rate = - config.laser_freq / 2 * log(1 - freq / config.laser_freq * 2)
-                correct_rate_error = freq_error / (1 - freq / config.laser_freq * 2)
-                points['corrected_rate' + type_].append(correct_rate)
-                points['corrected_rate' + type_ + '_down_error'].append(correct_rate - correct_rate_error)
-                points['corrected_rate' + type_ + '_up_error'].append(correct_rate + correct_rate_error)
 
+                try:
+                    corrected_rate = - config.laser_freq / 2 * log(1 - freq / config.laser_freq * 2)
+                    corrected_rate_error = freq_error / (1 - freq / config.laser_freq * 2)
+                except:
+                    corrected_rate = 0
+                    corrected_rate_error = 0
+                points['corrected_rate' + type_].append(corrected_rate)
+                points['corrected_rate' + type_ + '_down_error'].append(corrected_rate - corrected_rate_error)
+                points['corrected_rate' + type_ + '_up_error'].append(corrected_rate + corrected_rate_error)
 
             for axis in ['x_', 'y_']:
                 for reco in ['online_', 'cog_']:
@@ -117,11 +120,11 @@ class ChunkStorage:
                         points[name + '_down_error'].append(mean - error)
                         points[name + '_up_error'].append(mean + error)
 
-            points['time'].append(last_time + period / 2 - self.start_time)
+            points['time'].append(last_time - period / 2 - self.start_time)
 
             # подшивка точки деполяризатора
 
-            freq = depolarizer.find_closest_freq(last_time + period / 2)
+            freq = depolarizer.find_closest_freq(last_time - period / 2)
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append("%.3f" % energy)
 

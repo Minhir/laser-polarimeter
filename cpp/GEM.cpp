@@ -75,9 +75,14 @@ std::vector<hit_struct> debug_data()
 {
 
     std::vector<hit_struct> hit_vec;
-    int points_amount = 900;
+    int points_amount = 800;
     hit_vec.reserve(points_amount);
     double sec_ = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000. - 1;
+
+    std::default_random_engine generator(sec_);
+    std::normal_distribution<float> x_distribution(-50.0, 50.0);
+    points_amount += x_distribution(generator);
+
     if (start_time == 0) start_time = sec_;
     for (int i = 0; i < points_amount; ++i)
     {
