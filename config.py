@@ -18,6 +18,7 @@ class Config:
                 self.web_port = int(_config['web']['port'])
                 self.ip_list = _config['web']['allowed_ip']
                 self.GEM_slipping_time = float(_config['GEM']['call_period'])
+                self.laser_freq = float(_config['laser']['freq'])
                 self.depol_bounds = _config['depolarizer']['bounds']
                 for i in range(len(self.ip_list)):
                     #  Припишем номер порта к ip адресам
@@ -39,7 +40,8 @@ class Config:
                              f'Размер буфера точек = {self.asym_buffer_len}',
                              f'Ограничения настроек деполяризатора {self.depol_bounds}',
                              f'IP имеющие доступ: {self.ip_list}',
-                             f'Период опроса детектора = {self.GEM_slipping_time}']), end="\n\n")
+                             f'Период опроса детектора = {self.GEM_slipping_time}',
+                             f'Частота лазера = {self.laser_freq}']), end="\n\n")
 
 
 config = Config()

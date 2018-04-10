@@ -27,7 +27,7 @@ class GEM_handler(threading.Thread):
         else:
             data = self.GEM.GEM_reco()
 
-        hist_storage_.add_as_array([i.x_cog for i in data], [i.y_cog for i in data])  # TODO добавить обе реконструкции
+        hist_storage_.add_as_array([i.x_online for i in data], [i.y_online for i in data])  # TODO добавить обе реконструкции
 
         delta_time = 0.1
         start_time = None
@@ -69,7 +69,8 @@ class GEM_handler(threading.Thread):
                                    x_online_l / counter_l - x_online_r / counter_r,
                                    y_online_l / counter_l - y_online_r / counter_r,
                                    x_cog_l / counter_l - x_cog_r / counter_r,
-                                   y_cog_l / counter_l - y_cog_r / counter_r))
+                                   y_cog_l / counter_l - y_cog_r / counter_r,
+                                   counter_l, counter_r))
 
                 x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
                 x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0

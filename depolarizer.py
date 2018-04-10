@@ -250,15 +250,14 @@ class Depolarizer:
             n = self.harmonic_number
         return (E / self._RD - n) * f0
 
-    def find_closest_energy(self, time_):
+    def find_closest_freq(self, time_):
         ind = bisect.bisect_right(self.fmap,
                                   (time_, 0),
                                   lo=0, hi=len(self.fmap)) - 1
         if ind == -1:
             return 0
 
-        freq = self.fmap[ind][1]
-        return self.frequency_to_energy(freq) if freq != 0 else 0
+        return self.fmap[ind][1]
 
     def update_status(self):
         while True:

@@ -95,13 +95,13 @@ def app(doc):
 
     asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
-    asym_fig.xaxis[1].axis_label = 'Частота деполяризатора'
+    asym_fig.xaxis[1].axis_label = 'Энергия деполяризатора'
     asym_fig.xaxis[1].major_label_orientation = pi / 2  # 0.52
     depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
 
     hover = asym_fig.select(dict(type=HoverTool))
-    hover.tooltips = [("Время", "@time"), ("Частота деполяризации", "@depol_freq")]
+    hover.tooltips = [("Время", "@time"), ("Энергия деполяризации", "@depol_energy")]
 
     period_input = TextInput(value='300', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': 1}
@@ -117,9 +117,9 @@ def app(doc):
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
 
         for i, time in enumerate(points['time']):
-            if points['depol_freq'][i] == "0.000":
+            if points['depol_energy'][i] == "0.000":
                 continue
-            asym_fig.xaxis[1].major_label_overrides[time] = points['depol_freq'][i]
+            asym_fig.xaxis[1].major_label_overrides[time] = points['depol_energy'][i]
             depol_list.append(time)
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
@@ -143,27 +143,26 @@ def app(doc):
 
     # Настраиваемый график
 
-    fig_names = ["y_online", "y_cog"]
+    fig_names = [i + j for i in ["y_online", "y_cog", 'rate', "corrected_rate"] for j in ['_l', '_r']] # TODO: создать держатель имен графиков
     fig_handler = []
 
     for fig_name in fig_names:
-        for type_ in ['_l', '_r']:
-            fig = figure(plot_width=width_, plot_height=height_,
-                         tools="box_zoom, wheel_zoom, pan, save, reset",
-                         active_scroll="wheel_zoom")
+        fig = figure(plot_width=width_, plot_height=height_,
+                     tools="box_zoom, wheel_zoom, pan, save, reset",
+                     active_scroll="wheel_zoom")
 
-            fig.add_layout(Whisker(source=asym_source, base="time",
-                                   upper=fig_name + type_ + '_up_error',
-                                   lower=fig_name + type_ + '_down_error'))
+        fig.add_layout(Whisker(source=asym_source, base="time",
+                               upper=fig_name + '_up_error',
+                               lower=fig_name + '_down_error'))
 
-            fig.circle('time', fig_name + type_, source=asym_source, size=5, color="black",
-                       nonselection_alpha=1, nonselection_color="black")
-            fig.yaxis[0].axis_label = f"<{fig_name + type_}> [мм]"
-            fig.xaxis[0].axis_label = 'Время'
+        fig.circle('time', fig_name, source=asym_source, size=5, color="black",
+                   nonselection_alpha=1, nonselection_color="black")
+        fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"
+        fig.xaxis[0].axis_label = 'Время'
 
-            fig.x_range = asym_fig.x_range
+        fig.x_range = asym_fig.x_range
 
-            fig_handler.append((fig, fig_name + type_))
+        fig_handler.append((fig, fig_name))
 
     # Вкладки графика
     tab1 = Panel(child=asym_fig, title="Y")
@@ -302,7 +301,7 @@ def app(doc):
         name = fit_function_selection_widget.value
 
         t_width = 10
-        t_height = 8
+        t_height = 12
         delta_width = 0  # поправка на багу с шириной поля ввода
         m = create_fit_func(name,
                             asym_source.data['time'],
@@ -374,8 +373,9 @@ def app(doc):
         for i in params_:
             fit_handler["input_fields"][i['name']]["Init value"].value = str(i['value'])
             if i['name'] == "depol_time":
-                freq = depolarizer.find_closest_energy(i['value'])
-                energy_window.text = f"<p>Частота: {freq}, энергия: {depolarizer.frequency_to_energy(freq)}</p>"
+                freq = depolarizer.find_closest_freq(i['value'] + data_storage_.start_time)
+                energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
+                energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
         fit_handler["fit_line"] = asym_fig.line(x_axis,  # TODO: менять кол-во точек
                                                 get_line(name, asym_source.data['time'], [x['value'] for x in params_]),

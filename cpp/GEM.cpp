@@ -75,7 +75,7 @@ std::vector<hit_struct> debug_data()
 {
 
     std::vector<hit_struct> hit_vec;
-    int points_amount = 4000;
+    int points_amount = 900;
     hit_vec.reserve(points_amount);
     double sec_ = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000. - 1;
     if (start_time == 0) start_time = sec_;

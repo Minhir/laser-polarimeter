@@ -1,9 +1,11 @@
 import bisect
+from math import log
 import numpy_ringbuffer as ringbuffer
 import numpy as np
 from config import config
 from threading import Lock
 from depolarizer import depolarizer
+from experiment import experiment
 import time
 
 
@@ -13,11 +15,17 @@ chunk = np.dtype([('time', np.float64),
                   ('x_cog_l', np.float32), ('y_cog_l', np.float32),
                   ('x_cog_r', np.float32), ('y_cog_r', np.float32),
                   ('x_online_asym', np.float32), ('y_online_asym', np.float32),
-                  ('x_cog_asym', np.float32), ('y_cog_asym', np.float32)])
+                  ('x_cog_asym', np.float32), ('y_cog_asym', np.float32),
+                  ('counter_l', np.int32), ('counter_r', np.int32)])
 
 lock = Lock()
 
-names = ['time', 'depol_freq']
+names = ['time', 'depol_energy']
+
+for rate in ['rate', 'corrected_rate']:
+    for type_ in ['_l', '_r']:
+        for error_ in ['', '_up_error', '_down_error']:
+            names.append(rate + type_ + error_)
 
 for axis in ['x_', 'y_']:
     for reco in ['online_', 'cog_']:
@@ -83,42 +91,43 @@ class ChunkStorage:
             data = data_[left:right]
             last_time = data['time'][-1]
 
-            def make_point(name):
-                mean = np.mean(data[name])
-                error = np.std(data[name]) / (right - left)**0.5
-                points[name].append(mean)
-                points[name + '_down_error'].append(mean - error)
-                points[name + '_up_error'].append(mean + error)
+            for type_ in ['_l', '_r']:
+                name = 'rate' + type_
+                events_amount = np.sum(data['counter' + type_])
+                freq = np.sum(data['counter' + type_]) / period
+                freq_error = events_amount**0.5 / period
+                points[name].append(freq)
+                points[name + '_down_error'].append(freq - freq_error)
+                points[name + '_up_error'].append(freq + freq_error)
+                print(f"LOG + {1 - freq / config.laser_freq * 2}")
+                correct_rate = - config.laser_freq / 2 * log(1 - freq / config.laser_freq * 2)
+                correct_rate_error = freq_error / (1 - freq / config.laser_freq * 2)
+                points['corrected_rate' + type_].append(correct_rate)
+                points['corrected_rate' + type_ + '_down_error'].append(correct_rate - correct_rate_error)
+                points['corrected_rate' + type_ + '_up_error'].append(correct_rate + correct_rate_error)
+
 
             for axis in ['x_', 'y_']:
                 for reco in ['online_', 'cog_']:
                     for type_ in ['l', 'r', 'asym']:
-                        make_point(axis + reco + type_)
+                        name = axis + reco + type_
+                        mean = np.mean(data[name])
+                        error = np.std(data[name]) / (right - left) ** 0.5
+                        points[name].append(mean)
+                        points[name + '_down_error'].append(mean - error)
+                        points[name + '_up_error'].append(mean + error)
 
-            mean_time = np.mean(data['time'])
-            points['time'].append(mean_time - self.start_time)
+            points['time'].append(last_time + period / 2 - self.start_time)
 
             # подшивка точки деполяризатора
 
-            def find_closest():         # TODO: Перенести в деполяризатор
-                ind = bisect.bisect_right(depolarizer.fmap,
-                                          (mean_time, 0),
-                                          lo=0, hi=len(depolarizer.fmap)) - 1
-                if ind == -1:
-                    return 0
-
-                freq = depolarizer.fmap[ind][1]
-                if freq != 0:
-                    return depolarizer.frequency_to_energy(freq)
-                else:
-                    return 0
-
-            points['depol_freq'].append("%.3f" % find_closest())
+            freq = depolarizer.find_closest_freq(last_time + period / 2)
+            energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
+            points['depol_energy'].append("%.3f" % energy)
 
             # print(f"Time: {time.time() - t}")  # замер времени. Удалить.
-            # подшивка точки деполяризатора
 
-        # print(time.time() - t)  # замер времени. Удалить.
+        print(time.time() - t)  # замер времени. Удалить.
         # print(f"{100 * len(self.data_) / self.data_.maxlen} %")
 
         return points, last_time
