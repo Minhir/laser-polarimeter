@@ -1,5 +1,5 @@
 import bisect
-from math import log
+from math import log, floor
 import numpy_ringbuffer as ringbuffer
 import numpy as np
 from config import config
@@ -88,7 +88,6 @@ class ChunkStorage:
                 continue
 
             data = data_[left:right]
-            print(data['counter_l'])
 
             for type_ in ['_l', '_r']:
                 name = 'rate' + type_
@@ -154,7 +153,7 @@ class HistStorage:
     def add_as_array(self, x_list, y_list):
         hist_ = np.zeros((self.X, self.Y), dtype=np.int32)
         for x, y in zip(x_list, y_list):
-            r_x, r_y = round(x), round(y)
+            r_x, r_y = floor(x), floor(y)
             if (0 <= r_x < self.X) and (0 <= r_y < self.Y):
                 hist_[r_x, r_y] += 1
         self.hists_.append(hist_)

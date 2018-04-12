@@ -44,7 +44,7 @@ def app(doc):
 
     asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
-                      active_scroll="wheel_zoom", active_drag="pan")
+                      active_scroll="wheel_zoom", active_drag="pan", output_backend="webgl")
 
     def draw_selected_area(attr, old, new):
         if len(new.indices) <= 0:
@@ -148,13 +148,13 @@ def app(doc):
 
     # Настраиваемый график
 
-    fig_names = [i + j for i in ["y_online", "y_cog", 'rate', "corrected_rate"] for j in ['_l', '_r']] # TODO: создать держатель имен графиков
+    fig_names = [i + j for i in ["y_online", "y_cog"] for j in ['_l', '_r']] # TODO: создать держатель имен графиков
     fig_handler = []
 
     for fig_name in fig_names:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom")
+                     active_scroll="wheel_zoom", output_backend="webgl")
 
         fig.add_layout(Whisker(source=asym_source, base="time",
                                upper=fig_name + '_up_error',
@@ -164,9 +164,35 @@ def app(doc):
                    nonselection_alpha=1, nonselection_color="black")
         fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"
         fig.xaxis[0].axis_label = 'Время'
-
         fig.x_range = asym_fig.x_range
+        fig_handler.append((fig, fig_name))
 
+    for fig_name in ["rate", "corrected_rate"]:
+        fig = figure(plot_width=width_, plot_height=height_,
+                     tools="box_zoom, wheel_zoom, pan, save, reset",
+                     active_scroll="wheel_zoom", output_backend="webgl")
+
+        fig_name_l = fig_name + "_l"
+        fig_name_r = fig_name + "_r"
+        fig.add_layout(Whisker(source=asym_source, base="time",
+                               upper=fig_name_l + '_up_error',
+                               lower=fig_name_l + '_down_error', line_color='blue',
+                               lower_head=None, upper_head=None))
+
+        fig.add_layout(Whisker(source=asym_source, base="time",
+                       upper=fig_name_r + '_up_error',
+                       lower=fig_name_r + '_down_error', line_color='red',
+                       lower_head=None, upper_head=None))
+
+        fig.circle('time', fig_name_l, source=asym_source, size=5, color="blue",
+                   nonselection_alpha=1, nonselection_color="blue")
+
+        fig.circle('time', fig_name_r, source=asym_source, size=5, color="red",
+                   nonselection_alpha=1, nonselection_color="red")
+
+        fig.yaxis[0].axis_label = f"<{fig_name}>"
+        fig.xaxis[0].axis_label = 'Время'
+        fig.x_range = asym_fig.x_range
         fig_handler.append((fig, fig_name))
 
     # Вкладки графика

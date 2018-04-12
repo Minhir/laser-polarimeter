@@ -34,61 +34,53 @@ class GEM_handler(threading.Thread):
         x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
         x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
         counter_l, counter_r = 0, 0
-        end_point = 0
 
-        if len(data) != 0:      # TODO: првоерить костыль
+        if len(data) != 0:
             end_time = data[-1].timestamp
             if self.start_time is None:
                 self.start_time = data[0].timestamp
         else:
             return
 
-        for hit_struct in chain(self.buf, data):
-            if self.start_time + delta_time > end_time:
-                break
-            end_point += 1
-
-
-
-            if hit_struct.timestamp < self.start_time + delta_time:
-                if hit_struct.polarity == 0:
-                    counter_l += 1
-                    x_online_l += hit_struct.x_online
-                    y_online_l += hit_struct.y_online
-                    x_cog_l += hit_struct.x_cog
-                    y_cog_l += hit_struct.y_cog
-
-                else:
-                    counter_r += 1
-                    x_online_r += hit_struct.x_online
-                    y_online_r += hit_struct.y_online
-                    x_cog_r += hit_struct.x_cog
-                    y_cog_r += hit_struct.y_cog
-            else:
-                self.start_time += delta_time
-                if counter_l != 0 and counter_r != 0:
-                    data_storage_.add((self.start_time - delta_time / 2,
-                                       x_online_l / counter_l, y_online_l / counter_l,
-                                       x_online_r / counter_r, y_online_r / counter_r,
-                                       x_cog_l    / counter_l, y_cog_l    / counter_l,
-                                       x_cog_r    / counter_r, y_cog_r    / counter_r,
-                                       x_online_l / counter_l - x_online_r / counter_r,
-                                       y_online_l / counter_l - y_online_r / counter_r,
-                                       x_cog_l / counter_l - x_cog_r / counter_r,
-                                       y_cog_l / counter_l - y_cog_r / counter_r,
-                                       counter_l, counter_r))
-
-                x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
-                x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
-                counter_l, counter_r = 0, 0
-
         new_buf = []
-        if end_point > len(self.buf):
-            new_buf += data[end_point - len(self.buf):]
-        else:
-            new_buf += self.buf[end_point:]
-            new_buf += data[:]
-        self.buf = new_buf
+        for hit_struct in chain(self.buf, data):
+            if self.start_time + delta_time < end_time:
+
+                if hit_struct.timestamp < self.start_time + delta_time:
+                    if hit_struct.polarity == 0:
+                        counter_l += 1
+                        x_online_l += hit_struct.x_online
+                        y_online_l += hit_struct.y_online
+                        x_cog_l += hit_struct.x_cog
+                        y_cog_l += hit_struct.y_cog
+
+                    else:
+                        counter_r += 1
+                        x_online_r += hit_struct.x_online
+                        y_online_r += hit_struct.y_online
+                        x_cog_r += hit_struct.x_cog
+                        y_cog_r += hit_struct.y_cog
+                else:
+                    self.start_time += delta_time
+                    if counter_l != 0 and counter_r != 0:
+                        data_storage_.add((self.start_time - delta_time / 2,
+                                           x_online_l / counter_l, y_online_l / counter_l,
+                                           x_online_r / counter_r, y_online_r / counter_r,
+                                           x_cog_l    / counter_l, y_cog_l    / counter_l,
+                                           x_cog_r    / counter_r, y_cog_r    / counter_r,
+                                           x_online_l / counter_l - x_online_r / counter_r,
+                                           y_online_l / counter_l - y_online_r / counter_r,
+                                           x_cog_l / counter_l - x_cog_r / counter_r,
+                                           y_cog_l / counter_l - y_cog_r / counter_r,
+                                           counter_l, counter_r))
+
+                    x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
+                    x_cog_l, y_cog_l, x_cog_r, y_cog_r = 0, 0, 0, 0
+                    counter_l, counter_r = 0, 0
+            else:
+                new_buf.append(hit_struct)
+
+        self.buf = new_buf[:]
 
     def run(self):
         try:
