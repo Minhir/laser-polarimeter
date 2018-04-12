@@ -28,6 +28,7 @@ message Message
     REVOLUTION_FREQUENCY = 8;
     FMAP = 9;
     STATE = 10;
+    GENERATOR = 11;
   }
 
   enum Status
@@ -63,8 +64,9 @@ message Message
   required Command command         = 5;
   optional DataType data_type      = 6;
   optional double data             = 7;
-  optional FrequencyMap fmap       = 8;
-  optional Status status           = 9 [ default = OK ];
-  optional string error_str        =10;
+  optional string comment          = 8;
+  optional FrequencyMap fmap       = 9;
+  optional Status status           = 10 [ default = OK ];
+  optional string error_str        = 11;
 }
 
