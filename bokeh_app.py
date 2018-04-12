@@ -5,6 +5,7 @@ from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
 
+import numpy as np
 from math import pi
 from data_storage import hist_storage_, data_storage_, names
 from depolarizer import depolarizer
@@ -36,7 +37,7 @@ def app(doc):
 
     def hist_update():
         img = hist_storage_.get_hist(hist_buffer_len - hist_slider.value[1],
-                                                             hist_buffer_len - hist_slider.value[0])# TODO: починить
+                                                             hist_buffer_len - hist_slider.value[0])
         # print(f"sum = {hist_storage_.get_events_num()}")
         hist_source.data = {'image': [img]}
 
@@ -128,7 +129,7 @@ def app(doc):
             depol_list.append(time)
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
-        asym_source.stream(points, rollover=500)
+        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=500)
         # doc.add_next_tick_callback(partial(asym_plot, points))
 
     def change_period(attr, old, new):

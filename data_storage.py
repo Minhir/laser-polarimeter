@@ -15,7 +15,7 @@ chunk = np.dtype([('time', np.float64),
                   ('x_cog_r', np.float32), ('y_cog_r', np.float32),
                   ('x_online_asym', np.float32), ('y_online_asym', np.float32),
                   ('x_cog_asym', np.float32), ('y_cog_asym', np.float32),
-                  ('counter_l', np.int32), ('counter_r', np.int32)])
+                  ('counter_l', np.float32), ('counter_r', np.float32)])
 
 lock = Lock()
 
@@ -58,8 +58,6 @@ class ChunkStorage:
             self.start_time = self.data_['time'][0]
 
     def get_mean_from(self, last_time, period):
-        # print(f"Current len = {len(self.data_)}")  # TODO: разобраться с длиной
-
         points = {key: [] for key in names}
         t = time.time()
 
