@@ -56,6 +56,7 @@ std::vector<hit_struct> GEM_reco()
         {
             hit_vec.push_back(hit_struct{hits_online[i].X, hits_online[i].Y,
                                          hits_cog[i].X, hits_cog[i].Y,
+                                         hits_cog[i].Xcharge + hits_cog[i].Ycharge,
                                          timestamp_vec[i], polarity_vec[i]});
         }
     }
@@ -73,7 +74,6 @@ void depolarize()
 
 std::vector<hit_struct> debug_data()
 {
-
     std::vector<hit_struct> hit_vec;
     int points_amount = 800;
     hit_vec.reserve(points_amount);
@@ -89,6 +89,7 @@ std::vector<hit_struct> debug_data()
         auto hit_pair = get_model_hit();
         hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
                                      hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time) * 1.1f,
+                                     1.f,
                                      sec_,
                                      i % 2});
         sec_ += 1. / points_amount;

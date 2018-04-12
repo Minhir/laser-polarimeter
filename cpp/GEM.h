@@ -9,6 +9,7 @@ struct hit_struct
     float y_online;
     float x_cog;
     float y_cog;
+    float charge;
     double timestamp;
     int polarity;
 };

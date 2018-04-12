@@ -15,11 +15,12 @@ chunk = np.dtype([('time', np.float64),
                   ('x_cog_r', np.float32), ('y_cog_r', np.float32),
                   ('x_online_asym', np.float32), ('y_online_asym', np.float32),
                   ('x_cog_asym', np.float32), ('y_cog_asym', np.float32),
-                  ('counter_l', np.float32), ('counter_r', np.float32)])
+                  ('counter_l', np.float32), ('counter_r', np.float32),
+                  ('charge', np.float32)])
 
 lock = Lock()
 
-names = ['time', 'depol_energy']
+names = ['time', 'depol_energy', 'charge']
 
 for rate in ['rate', 'corrected_rate']:
     for type_ in ['_l', '_r']:
@@ -71,7 +72,7 @@ class ChunkStorage:
             if last_time + period >= last_elem['time']:
                 return points, last_time
 
-            data_ = np.copy(self.data_)
+            data_ = np.copy(self.data_)     # TODO: bisect before copy
 
         if last_time == 0:
             last_time = data_['time'][0]
@@ -89,9 +90,8 @@ class ChunkStorage:
 
             for type_ in ['_l', '_r']:
                 name = 'rate' + type_
-                events_amount = np.sum(data['counter' + type_])
                 freq = np.sum(data['counter' + type_]) / period
-                freq_error = events_amount**0.5 / period
+                freq_error = (freq / period * (1 - 2 * freq / config.laser_freq))**0.5
                 points[name].append(freq)
                 points[name + '_down_error'].append(freq - freq_error)
                 points[name + '_up_error'].append(freq + freq_error)
@@ -117,6 +117,7 @@ class ChunkStorage:
                         points[name + '_up_error'].append(mean + error)
 
             points['time'].append(last_time - period / 2 - self.start_time)
+            points['charge'].append(np.mean(data['charge']))
 
             # подшивка точки деполяризатора
 
@@ -163,9 +164,39 @@ class HistStorage:
         if left > right:
             raise ValueError(f'left (={left}) >= right (={right})')
 
-        return np.mean(self.hists_[left:right], axis=0).T  # TODO: проверить axis mean. Проверять на пустоту?
+        hists_ = self.hists_[left:right]
+        if hists_.size != 0:
+            mean_hist = np.nan_to_num(np.mean(hists_, axis=0).T)
+        else:
+            mean_hist = np.zeros((self.X, self.Y), dtype=np.int32)
 
-    def get_events_num(self):
+        return mean_hist
+
+    def get_hist_with_std(self, left=0, right=None):
+        right = self.buffer_len if right is None else min(right, self.buffer_len)
+        left, right = int(left), int(right)
+
+        if left > right:
+            raise ValueError(f'left (={left}) >= right (={right})')
+
+        hists_ = self.hists_[left:right]
+        if hists_.size != 0:
+            mean_hist = np.nan_to_num(np.mean(hists_, axis=0).T)
+        else:
+            mean_hist = np.zeros((self.Y, self.X), dtype=np.int32)
+
+        y = np.sum(mean_hist, axis=1).reshape(self.Y)
+        x = np.sum(mean_hist, axis=0).reshape(self.X)
+        x_num = np.sum(x)
+        x_mean = np.sum(x * np.arange(self.X)) / x_num
+        y_mean = self.Y / 2
+
+        x_std = np.sum(x * np.power(np.arange(self.X) - x_mean, 2)) / x_num if x.size != 0 else 0
+        y_std = np.sum(y * np.fabs(np.arange(self.Y) - y_mean)) if y.size != 0 else 0
+
+        return mean_hist, x_std, y_std
+
+    def get_events_sum(self):
         return np.sum(self.hists_)
 
 

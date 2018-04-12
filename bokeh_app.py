@@ -1,6 +1,6 @@
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend
+from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend, Label
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
@@ -21,7 +21,7 @@ def app(doc):
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": []}
 
     # Гистограмма пятна
-    img = hist_storage_.get_hist()
+    img, img_x_std, img_y_std = hist_storage_.get_hist_with_std()
     hist_source = ColumnDataSource(data=dict(image=[img]))
     width_ = config.GEM_X * 5
     hist_height_ = config.GEM_Y * 5
@@ -31,14 +31,21 @@ def app(doc):
 
     hist_fig.image(image='image', x=0, y=0, dw=config.GEM_X, dh=config.GEM_Y, palette="Spectral11", source=hist_source)
 
+    hist_label = Label(x=0, y=0, x_units='screen', y_units='screen',
+                       text=f"x_std={'%.2f' % img_x_std},y_std={'%.2f' % img_y_std}", render_mode='css',
+                       border_line_color='black', border_line_alpha=1.0,
+                       background_fill_color='white', background_fill_alpha=1.0)
+
+    hist_fig.add_layout(hist_label)
+
     hist_buffer_len = config.hist_buffer_len - 1
     hist_slider = RangeSlider(start=0, end=hist_buffer_len, value=(0, hist_buffer_len),
                               step=1, title="Срез пятна (от..до) сек назад")
 
     def hist_update():
-        img = hist_storage_.get_hist(hist_buffer_len - hist_slider.value[1],
-                                                             hist_buffer_len - hist_slider.value[0])
-        # print(f"sum = {hist_storage_.get_events_num()}")
+        img, img_x_std, img_y_std = hist_storage_.get_hist_with_std(hist_buffer_len - hist_slider.value[1],
+                                                                    hist_buffer_len - hist_slider.value[0])
+        hist_label.text=f"x_std={'%.2f' % img_x_std},y_std={'%.2f' % img_y_std}"
         hist_source.data = {'image': [img]}
 
     # График асимметрии
@@ -110,7 +117,7 @@ def app(doc):
     hover.tooltips = [("Время", "@time"), ("Энергия деполяризации", "@depol_energy")]
 
     period_input = TextInput(value='300', title="Время усреднения (с):")
-    params = {'last_time': 0, 'period': 1}
+    params = {'last_time': 0, 'period': int(period_input.value)}
 
     def update_data():
         if params['period'] != int(period_input.value):
@@ -138,7 +145,7 @@ def app(doc):
 
         try:
             val = int(new)
-            if not (0 < val < 10000):
+            if not (0 < val < config.asym_buffer_len):
                 raise ValueError("Некорректное значение")
 
         except ValueError as e:
@@ -195,6 +202,18 @@ def app(doc):
         fig.xaxis[0].axis_label = 'Время'
         fig.x_range = asym_fig.x_range
         fig_handler.append((fig, fig_name))
+
+    fig = figure(plot_width=width_, plot_height=height_,
+                 tools="box_zoom, wheel_zoom, pan, save, reset",
+                 active_scroll="wheel_zoom", output_backend="webgl")
+
+    fig.circle('time', "charge", source=asym_source, size=5, color="blue",
+               nonselection_alpha=1, nonselection_color="blue")
+
+    fig.yaxis[0].axis_label = "Заряд"
+    fig.xaxis[0].axis_label = 'Время'
+
+    fig_handler.append((fig, 'charge'))
 
     # Вкладки графика
     tab1 = Panel(child=asym_fig, title="Y")
