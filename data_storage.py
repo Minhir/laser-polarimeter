@@ -147,6 +147,8 @@ class HistStorage:
         self.buffer_len = buffer_len
         self.X = X
         self.Y = Y
+        self.x_arr = np.arange(self.X)
+        self.y_arr = np.arange(self.Y)
         self.hists_ = ringbuffer.RingBuffer(buffer_len, dtype=(np.int32, (self.X, self.Y)))
 
     def add_as_array(self, x_list, y_list):
@@ -180,21 +182,28 @@ class HistStorage:
             raise ValueError(f'left (={left}) >= right (={right})')
 
         hists_ = self.hists_[left:right]
+
         if hists_.size != 0:
             mean_hist = np.nan_to_num(np.mean(hists_, axis=0).T)
         else:
             mean_hist = np.zeros((self.Y, self.X), dtype=np.int32)
 
-        y = np.sum(mean_hist, axis=1).reshape(self.Y)
         x = np.sum(mean_hist, axis=0).reshape(self.X)
-        x_num = np.sum(x)
-        x_mean = np.sum(x * np.arange(self.X)) / x_num
-        y_mean = self.Y / 2
+        y = np.sum(mean_hist, axis=1).reshape(self.Y)
 
-        x_std = np.sum(x * np.power(np.arange(self.X) - x_mean, 2)) / x_num if x.size != 0 else 0
-        y_std = np.sum(y * np.fabs(np.arange(self.Y) - y_mean)) if y.size != 0 else 0
+        if np.sum(x) == 0:
+            x_variance = 0
+        else:
+            x_average = np.average(self.x_arr, weights=x)
+            x_variance = np.average((self.x_arr - x_average)**2, weights=x)**0.5,
 
-        return mean_hist, x_std, y_std
+        if np.sum(y) == 0:
+            y_variance = 0
+        else:
+            y_average = np.average(self.y_arr, weights=y)
+            y_variance = np.average((self.y_arr - y_average)**2, weights=y)**0.5
+
+        return mean_hist, x_variance, y_variance
 
     def get_events_sum(self):
         return np.sum(self.hists_)

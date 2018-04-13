@@ -136,7 +136,7 @@ def app(doc):
             depol_list.append(time)
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
-        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=500)
+        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=450)
         # doc.add_next_tick_callback(partial(asym_plot, points))
 
     def change_period(attr, old, new):
@@ -438,15 +438,19 @@ def app(doc):
 
     # Инициализация bokeh app
     column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
-    widgets_ = WidgetBox(depol_start_stop_buttons, fake_depol_button,
+    widgets_ = WidgetBox(depol_start_stop_buttons,
                          depol_input_harmonic_number, depol_input_attenuation, depol_input_speed,
                          depol_input_step, depol_input_initial,
                          depol_input_final, depol_status_window)
 
     row_21 = column(hist_fig, hist_slider)
     column_21 = column(widgets_)
-    column_22 = column(fit_button, clear_fit_button, fit_line_selection_widget, fit_function_selection_widget,
-                       energy_window, make_parameters_table(None, None, None))
+    if config.GEM_idle:
+        column_22 = column(fit_button, clear_fit_button, fake_depol_button, fit_line_selection_widget,
+                           fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
+    else:
+        column_22 = column(fit_button, clear_fit_button, fit_line_selection_widget,
+                           fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
 
     def rebuild_table(attr, old, new):
         column_22.children[5] = make_parameters_table(None, None, None)
@@ -456,9 +460,6 @@ def app(doc):
     row_22 = row(column_21, column_22)
     column_2 = column(row_21, row_22, width=width_ + 50)
     layout_ = row(column_1, column_2)
-
-    def pr_har():
-        print(depolarizer.get_by_name("harmonic_number"))
 
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback

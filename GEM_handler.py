@@ -64,25 +64,24 @@ class GEM_handler(threading.Thread):
                         x_cog_r += hit_struct.x_cog
                         y_cog_r += hit_struct.y_cog
                 else:
-                    if counter_l == 0 and counter_r == 0:
-                        continue
+                    if counter_l != 0 or counter_r != 0:
 
-                    if counter_l == 0:
-                        counter_l = np.nan
+                        if counter_l == 0:
+                            counter_l = np.nan
 
-                    if counter_r == 0:
-                        counter_r = np.nan
+                        if counter_r == 0:
+                            counter_r = np.nan
 
-                    data_storage_.add((self.start_time + self.delta_time / 2,
-                                       x_online_l / counter_l, y_online_l / counter_l,
-                                       x_online_r / counter_r, y_online_r / counter_r,
-                                       x_cog_l    / counter_l, y_cog_l    / counter_l,
-                                       x_cog_r    / counter_r, y_cog_r    / counter_r,
-                                       x_online_l / counter_l - x_online_r / counter_r,
-                                       y_online_l / counter_l - y_online_r / counter_r,
-                                       x_cog_l / counter_l - x_cog_r / counter_r,
-                                       y_cog_l / counter_l - y_cog_r / counter_r,
-                                       counter_l, counter_r, charge / (counter_l + counter_r)))
+                        data_storage_.add((self.start_time + self.delta_time / 2,
+                                           x_online_l / counter_l, y_online_l / counter_l,
+                                           x_online_r / counter_r, y_online_r / counter_r,
+                                           x_cog_l    / counter_l, y_cog_l    / counter_l,
+                                           x_cog_r    / counter_r, y_cog_r    / counter_r,
+                                           x_online_l / counter_l - x_online_r / counter_r,
+                                           y_online_l / counter_l - y_online_r / counter_r,
+                                           x_cog_l / counter_l - x_cog_r / counter_r,
+                                           y_cog_l / counter_l - y_cog_r / counter_r,
+                                           counter_l, counter_r, charge / (counter_l + counter_r)))
 
                     self.start_time += self.delta_time
                     x_online_l, y_online_l, x_online_r, y_online_r = 0, 0, 0, 0
