@@ -173,10 +173,10 @@ class HistStorage:
         self.y_arr = np.arange(self.Y)
         self.hists_ = ringbuffer.RingBuffer(buffer_len, dtype=(np.int32, (self.X, self.Y)))
 
-    def add_as_array(self, x_list, y_list):
+    def add_as_GEM_struct_array(self, data):
         hist_ = np.zeros((self.X, self.Y), dtype=np.int32)
-        for x, y in zip(x_list, y_list):
-            r_x, r_y = floor(x), floor(y)
+        for struct in data:
+            r_x, r_y = floor(struct.x_online), floor(struct.y_online)
             if (0 <= r_x < self.X) and (0 <= r_y < self.Y):
                 hist_[r_x, r_y] += 1
         self.hists_.append(hist_)

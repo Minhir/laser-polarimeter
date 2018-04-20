@@ -29,7 +29,7 @@ class GEM_handler(threading.Thread):
     def get_data(self):
         data = self.GEM.debug_data() if self.debug else self.GEM.GEM_reco()
 
-        hist_storage_.add_as_array([i.x_online for i in data], [i.y_online for i in data])
+        hist_storage_.add_as_GEM_struct_array(data)
 
         if len(data) != 0:
             end_time = data[-1].timestamp - self.delta_time
