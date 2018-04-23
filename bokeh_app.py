@@ -45,7 +45,7 @@ def app(doc):
     def hist_update():
         img, img_x_std, img_y_std = hist_storage_.get_hist_with_std(hist_buffer_len - hist_slider.value[1],
                                                                     hist_buffer_len - hist_slider.value[0])
-        hist_label.text=f"x_std={'%.2f' % img_x_std},y_std={'%.2f' % img_y_std}"
+        hist_label.text = f"x_std={'%.2f' % img_x_std},y_std={'%.2f' % img_y_std}"
         hist_source.data = {'image': [img]}
 
     # График асимметрии
@@ -56,6 +56,7 @@ def app(doc):
                       output_backend="webgl", lod_threshold=100)
 
     def draw_selected_area(attr, old, new):
+        """Подсветка выделенной для подгонки области"""
         if not new.indices:
             return
         fit_handler["fit_indices"] = sorted(new.indices)
@@ -143,7 +144,6 @@ def app(doc):
     def change_period(attr, old, new):
         if old == new:
             return
-
         try:
             val = int(new)
             if not (0 < val < config.asym_buffer_len):
@@ -410,12 +410,19 @@ def app(doc):
             y_axis = asym_source.data[line_name]
             y_errors = [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])]
 
-        print(np.any(np.isnan(x_axis)))
-        print(max(y_axis))
-        print(np.any(np.isnan(y_errors)))
-        m = fit.create_fit_func(name, x_axis, y_axis, y_errors,
-                                {name: float(fit_handler["input_fields"][name]["Init value"].value)
-                                 for name in fit_handler["input_fields"].keys()})
+        # print(np.any(np.isnan(x_axis))))
+        # print(max(y_axis))
+        # print(np.any(np.isnan(y_errors))
+        kwargs = {}
+        init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
+                     for name in fit_handler["input_fields"].keys()}
+
+        fix_vals = {"fix_" + name: True for name in fit_handler["input_fields"].keys()
+                    if fit_handler["input_fields"][name]["fix"].active}
+
+        kwargs.update(init_vals)
+        kwargs.update(fix_vals)
+        m = fit.create_fit_func(name, x_axis, y_axis, y_errors, kwargs)
 
         fit.fit(m)  # TODO: в отдельный поток?
         params_ = m.get_param_states()

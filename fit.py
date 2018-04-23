@@ -55,7 +55,6 @@ def get_function_params(name):
 
 
 def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
-    print(kwargs)
     return Minuit(GenericChi2(function_handler[name], x, y, y_err), throw_nan=True, **kwargs)
 
 
