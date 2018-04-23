@@ -2,7 +2,6 @@ GEM:
     X : 160   # Количество падов
     Y : 40
     call_period : 1 # Период опросов детектора [с]
-    idle_mod : False # Использовать смоделированные данные вместо детектора
 laser:
     freq : 1945.18764
 depolarizer:
@@ -16,8 +15,8 @@ depolarizer:
 data:
     hist_buffer_len : 256 # Кол-во хранимых срезов гистограммы пятна
     asym_buffer_len : 864_000 # Кол-во хранимых точек
-    delta_time : 0.1  # Время усреднения точек [с]
-    writing_delta_time : 600  # Период сохранения данных на диск [с]
+    delta_time : 0.1  # Время усреднения точек [с] # Разобраться с nan
+    writing_delta_time : 10  # Период сохранения данных на диск [с]
 web:
     port: 5006
     allowed_ip:
@@ -30,3 +29,8 @@ web:
         - 192.168.174.20  # kedr-shift
         - 192.168.174.14  # kedr-24
         - 192.168.176.68  # l1-3-much
+debug:
+    idle_mod : False # Использовать смоделированные данные вместо детектора
+    read_hitdump : False  # читать hitdump
+    hitdump_dir : ./data/hitdump
+    hitdump_mask : full\.2017-05-13_0[4-9].* #  в формаре регулярного выражения

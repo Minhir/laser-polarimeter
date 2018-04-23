@@ -7,27 +7,31 @@ import numpy as np
 import cpp.GEM as GEM
 from data_storage import hist_storage_, data_storage_
 from config import config
+from hit_dump_parser import read_hitdump
 
 
 class GEM_handler(threading.Thread):
 
-    def __init__(self, debug=False, sleeping_time=1):
+    def __init__(self, sleeping_time=1):
         """
         Получает данные от GEM и складывает их в data_storage
 
-        :param debug: режим отладки, когда идут смоделированные данные
         :param sleeping_time: интервал между опросами детектора
         """
         threading.Thread.__init__(self, name='GEM_handler')
         self.GEM = GEM
-        self.debug = debug
         self.sleeping_time = sleeping_time
         self.buf = []
         self.start_time = None
         self.delta_time = config.delta_time
 
     def get_data(self):
-        data = self.GEM.debug_data() if self.debug else self.GEM.GEM_reco()
+        if config.read_hitdump:
+            data = read_hitdump()
+        elif config.idle_mod:
+            data = self.GEM.debug_data()
+        else:
+            data = self.GEM.GEM_reco()
 
         hist_storage_.add_as_GEM_struct_array(data)
 
@@ -94,11 +98,13 @@ class GEM_handler(threading.Thread):
 
     def run(self):
         try:
-            if not self.debug:
+            if not config.idle_mod:
                 self.GEM.init()
         except :                            # TODO: уточнить
             print('Can\'t init GEM!')
-
-        while True:
-            sleep(self.sleeping_time)
+        if config.read_hitdump:
             self.get_data()
+        else:
+            while True:
+                sleep(self.sleeping_time)
+                self.get_data()

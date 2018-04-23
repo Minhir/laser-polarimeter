@@ -1,11 +1,13 @@
 import bisect
 from math import log, floor
+from threading import Lock
+import time
+
 import numpy_ringbuffer as ringbuffer
 import numpy as np
+
 from config import config
-from threading import Lock
 from depolarizer import depolarizer
-import time
 from file_io import file_io
 
 chunk = np.dtype([('time', np.float64),
@@ -46,7 +48,14 @@ class ChunkStorage:
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)  # Аналог self.data_['time'], только в np.array.
         self.start_time = None
-        self._read_from_files()
+        if not config.read_hitdump:
+            self._read_from_files()
+        # self._test_full()
+
+    def _test_full(self):
+        st = self.data_[0]
+        for i in range(self.buffer_len):
+            self.data_.append(st)
 
     def _read_from_files(self):
         for data in file_io.read_from_file():
@@ -64,7 +73,8 @@ class ChunkStorage:
             self.data_.append(data)  # TODO: проверить неубывание
             self.time_data_.append(data['time'])
 
-        file_io.write_to_file(data)
+        if not config.read_hitdump:
+            file_io.write_to_file(data)
 
         if self.start_time is None and len(self.data_) != 0:
             self.start_time = self.time_data_[0]
@@ -145,7 +155,7 @@ class ChunkStorage:
 
         print(f"time per step = {time.time() - t}")  # замер времени. Удалить.
         print(f"{100 * len(self.data_) / self.data_.maxlen} %")
-        print()
+        # print()
 
         # ~ 50 %, 50 мс
         # перешёл на хранение 500_000
@@ -174,6 +184,11 @@ class HistStorage:
         self.hists_ = ringbuffer.RingBuffer(buffer_len, dtype=(np.int32, (self.X, self.Y)))
 
     def add_as_GEM_struct_array(self, data):
+        """
+        Добавляет гистограмму в хранилище
+
+        :param data: данные в виде hit_struct (GEM.h)
+        """
         hist_ = np.zeros((self.X, self.Y), dtype=np.int32)
         for struct in data:
             r_x, r_y = floor(struct.x_online), floor(struct.y_online)
@@ -181,22 +196,14 @@ class HistStorage:
                 hist_[r_x, r_y] += 1
         self.hists_.append(hist_)
 
-    def get_hist(self, left=0, right=None):
-        right = self.buffer_len if right is None else min(right, self.buffer_len)
-        left, right = int(left), int(right)
-
-        if left > right:
-            raise ValueError(f'left (={left}) >= right (={right})')
-
-        hists_ = self.hists_[left:right]
-        if hists_.size != 0:
-            mean_hist = np.nan_to_num(np.mean(hists_, axis=0).T)
-        else:
-            mean_hist = np.zeros((self.X, self.Y), dtype=np.int32)
-
-        return mean_hist
-
     def get_hist_with_std(self, left=0, right=None):
+        """
+        Возвращет усреднённую по срезу от left до right гистограмму
+
+        :param left: от
+        :param right: до
+        :return: mean_hist, x_std, y_std -- усреднённая гистограмма, std вдоль x, std вдоль y
+        """
         right = self.buffer_len if right is None else min(right, self.buffer_len)
         left, right = int(left), int(right)
 
@@ -228,6 +235,7 @@ class HistStorage:
         return mean_hist, x_std, y_std
 
     def get_events_sum(self):
+        """Возвращает количество событий"""
         return np.sum(self.hists_)
 
 

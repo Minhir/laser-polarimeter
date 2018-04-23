@@ -164,7 +164,6 @@ class Depolarizer:
         self.send(m)
         m = self.receive()
         return m.comment
-        
 
     def set_initial(self, data):
         self.initial = data
@@ -199,7 +198,6 @@ class Depolarizer:
         return self.set(Message.ATTENUATION, data)
 
     def set_harmonic_number(self, data):
-        #print(f"DATA = {data}")
         self.harmonic_number = data
         self.set_initial(self.energy_to_frequency(self.initial_energy))
         self.set_final(self.energy_to_frequency(self.final_energy))

@@ -12,7 +12,6 @@ class Config:
                 _config = yaml.load(config_file)
                 self.GEM_X = int(_config['GEM']['X'])
                 self.GEM_Y = int(_config['GEM']['Y'])
-                self.GEM_idle = bool(_config['GEM']['idle_mod'])
                 self.hist_buffer_len = int(_config['data']['hist_buffer_len'])
                 self.asym_buffer_len = int(_config['data']['asym_buffer_len'])
                 self.web_port = int(_config['web']['port'])
@@ -22,6 +21,10 @@ class Config:
                 self.depol_bounds = _config['depolarizer']['bounds']
                 self.delta_time = float(_config['data']['delta_time'])
                 self.writing_delta_time = float(_config['data']['writing_delta_time'])
+                self.GEM_idle = bool(_config['debug']['idle_mod'])
+                self.read_hitdump = bool(_config['debug']['read_hitdump'])
+                self.hitdump_dir = _config['debug']['hitdump_dir']
+                self.hitdump_mask = _config['debug']['hitdump_mask']
                 for i in range(len(self.ip_list)):
                     #  Припишем номер порта к ip адресам
                     self.ip_list[i] += ':' + str(self.web_port)
@@ -37,7 +40,10 @@ class Config:
         print('Конфигурация:\n -- ', end='')
         print('\n -- '.join([f'GEM X = {self.GEM_X}',
                              f'GEM Y = {self.GEM_Y}',
-                             f'Холостой режим = {self.GEM_idle}',
+                             f'Холостой режим' if self.GEM_idle else '',
+                             f'Чтение hitdump' if self.read_hitdump else '',
+                             f'Директория {self.hitdump_dir}' if self.read_hitdump else '',
+                             f'Маска для файлов {self.hitdump_mask}' if self.read_hitdump else '',
                              f'Размер буфера гистограмм = {self.hist_buffer_len}',
                              f'Размер буфера точек = {self.asym_buffer_len}',
                              f'Время усреднения = {self.delta_time}',
