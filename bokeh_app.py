@@ -11,7 +11,7 @@ from data_storage import hist_storage_, data_storage_, names
 from depolarizer import depolarizer
 from config import config
 import cpp.GEM as GEM
-from fit import fit, get_line, create_fit_func
+import fit
 
 
 def app(doc):
@@ -52,20 +52,21 @@ def app(doc):
 
     asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
-                      active_scroll="wheel_zoom", active_drag="pan", output_backend="webgl")
+                      active_scroll="wheel_zoom", active_drag="pan", active_inspect=None,
+                      output_backend="webgl", lod_threshold=100)
 
     def draw_selected_area(attr, old, new):
-        if len(new.indices) <= 0:
+        if not new.indices:
             return
         fit_handler["fit_indices"] = sorted(new.indices)
         left_, right_ = fit_handler["fit_indices"][0], fit_handler["fit_indices"][-1]
         left_, right_ = asym_source.data['time'][left_], asym_source.data['time'][right_]
         BoxAnnotation(plot=asym_fig, left=left_, right=right_)
 
-        asym_fig_box_select = (BoxAnnotation(left=left_,
-                                             name="fit_zone",
-                                             right=right_,
-                                             fill_alpha=0.1, fill_color='red'))
+        asym_fig_box_select = BoxAnnotation(left=left_,
+                                            name="fit_zone",
+                                            right=right_,
+                                            fill_alpha=0.1, fill_color='red')
 
         asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']  # TODO: fix не удаляет
         asym_fig.add_layout(asym_fig_box_select)
@@ -156,13 +157,13 @@ def app(doc):
 
     # Настраиваемый график
 
-    fig_names = [i + j for i in ["y_online", "y_cog"] for j in ['_l', '_r']] # TODO: создать держатель имен графиков
+    fig_names = [i + j for i in ["y_online", "y_cog"] for j in ['_l', '_r']]  # TODO: создать держатель имен графиков
     fig_handler = []
 
     for fig_name in fig_names:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", output_backend="webgl")
+                     active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
 
         fig.add_layout(Whisker(source=asym_source, base="time",
                                upper=fig_name + '_up_error',
@@ -178,7 +179,7 @@ def app(doc):
     for fig_name in ["rate", "corrected_rate"]:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", output_backend="webgl")
+                     active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
 
         fig_name_l = fig_name + "_l"
         fig_name_r = fig_name + "_r"
@@ -205,7 +206,7 @@ def app(doc):
 
     fig = figure(plot_width=width_, plot_height=height_,
                  tools="box_zoom, wheel_zoom, pan, save, reset",
-                 active_scroll="wheel_zoom", output_backend="webgl")
+                 active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
 
     fig.circle('time', "charge", source=asym_source, size=5, color="blue",
                nonselection_alpha=1, nonselection_color="blue")
@@ -348,37 +349,31 @@ def app(doc):
     fit_button = Button(label="FIT", width=200)
 
     def make_parameters_table(attr, old, new):
-        line_name = fit_line_selection_widget.value
+        """Создание поля ввода данных для подгонки: начальное значение, fix и т.д."""
         name = fit_function_selection_widget.value
 
         t_width = 10
         t_height = 12
-        delta_width = 0  # поправка на багу с шириной поля ввода
-        m = create_fit_func(name,
-                            asym_source.data['time'],
-                            asym_source.data[line_name],
-                            [i - j for i, j in zip(asym_source.data[line_name + '_up_error'],
-                            asym_source.data[line_name])],
-                            {})
 
         rows = [row(Paragraph(text="name", width=t_width, height=t_height),
                     Paragraph(text="Fix", width=t_width, height=t_height),
-                    Paragraph(text="Init value", width=t_width + delta_width, height=t_height),
-                    Paragraph(text="step (error)", width=t_width + delta_width, height=t_height),
+                    Paragraph(text="Init value", width=t_width, height=t_height),
+                    Paragraph(text="step (error)", width=t_width, height=t_height),
                     Paragraph(text="bounds", width=t_width, height=t_height),
-                    Paragraph(text="start", width=t_width + delta_width, height=t_height),
-                    Paragraph(text="stop", width=t_width + delta_width, height=t_height))]
+                    Paragraph(text="start", width=t_width, height=t_height),
+                    Paragraph(text="stop", width=t_width, height=t_height))]
 
         fit_handler["input_fields"] = {}
 
-        for param in m.parameters:
+        for param, value in fit.get_function_params(name):
             fit_handler["input_fields"][param] = {}
             fit_handler["input_fields"][param]["fix"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width + delta_width, height=t_height, value="1")
-            fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width,
+                                                                         height=t_height, value=str(value))
+            fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width, height=t_height)
             fit_handler["input_fields"][param]["bounds"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["start"] = TextInput(width=t_width + delta_width, height=t_height)
-            fit_handler["input_fields"][param]["stop"] = TextInput(width=t_width + delta_width, height=t_height)
+            fit_handler["input_fields"][param]["start"] = TextInput(width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["stop"] = TextInput(width=t_width, height=t_height)
 
             rows.append(row(Paragraph(text=param, width=t_width, height=t_height),
                             fit_handler["input_fields"][param]["fix"],
@@ -391,6 +386,7 @@ def app(doc):
         return column(rows)
 
     def clear_fit():
+        """Удаление подогнанной кривой"""
         if fit_handler["fit_line"] in asym_fig.renderers:
             asym_fig.renderers.remove(fit_handler["fit_line"])
 
@@ -399,12 +395,12 @@ def app(doc):
     clear_fit_button.on_click(clear_fit)
 
     def fit_callback():
-        if fit_handler["fit_line"] in asym_fig.renderers:
-            asym_fig.renderers.remove(fit_handler["fit_line"])
+        clear_fit()
 
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
         fit_indices = fit_handler["fit_indices"]
+
         if fit_indices:
             x_axis = [asym_source.data['time'][i] for i in fit_indices]
             y_axis = [asym_source.data[line_name][i] for i in fit_indices]
@@ -413,13 +409,15 @@ def app(doc):
             x_axis = asym_source.data['time']
             y_axis = asym_source.data[line_name]
             y_errors = [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])]
-        m = create_fit_func(name,
-                            x_axis,
-                            y_axis,
-                            y_errors,
-                            {name: float(fit_handler["input_fields"][name]["Init value"].value) for name in fit_handler["input_fields"].keys()})
 
-        fit(m)  # TODO: в отдельный поток?
+        print(np.any(np.isnan(x_axis)))
+        print(max(y_axis))
+        print(np.any(np.isnan(y_errors)))
+        m = fit.create_fit_func(name, x_axis, y_axis, y_errors,
+                                {name: float(fit_handler["input_fields"][name]["Init value"].value)
+                                 for name in fit_handler["input_fields"].keys()})
+
+        fit.fit(m)  # TODO: в отдельный поток?
         params_ = m.get_param_states()
         for i in params_:
             fit_handler["input_fields"][i['name']]["Init value"].value = str(i['value'])
@@ -429,12 +427,10 @@ def app(doc):
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
         fit_handler["fit_line"] = asym_fig.line(x_axis,  # TODO: менять кол-во точек
-                                                get_line(name, asym_source.data['time'], [x['value'] for x in params_]),
+                                                fit.get_line(name, x_axis, [x['value'] for x in params_]),
                                                 color="red", line_width=2)
 
     fit_button.on_click(fit_callback)
-
-     # {depol_time = 50, P0 = 0, Pmax = 10, tau = 14, DELTA = 0, T = 1}
 
     # Инициализация bokeh app
     column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
@@ -448,12 +444,14 @@ def app(doc):
     if config.GEM_idle:
         column_22 = column(fit_button, clear_fit_button, fake_depol_button, fit_line_selection_widget,
                            fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
+        make_parameters_table_id = 6
     else:
         column_22 = column(fit_button, clear_fit_button, fit_line_selection_widget,
                            fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
+        make_parameters_table_id = 5
 
     def rebuild_table(attr, old, new):
-        column_22.children[5] = make_parameters_table(None, None, None)
+        column_22.children[make_parameters_table_id] = make_parameters_table(None, None, None)
 
     fit_function_selection_widget.on_change("value", rebuild_table)
 

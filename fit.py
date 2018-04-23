@@ -23,11 +23,11 @@ def polarization(P0, Pmax, tau, t):
     return P0 + (Pmax-P0)*(1.0 - exp(- t/tau))
 
 
-def const(time, p0):
+def const(time, p0=0):
     return p0
 
 
-def exp_jump(time, depol_time, P0, Pmax, tau, DELTA, T):
+def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
     if time < depol_time - T / 2:
         return polarization(P0, Pmax, tau, time)
@@ -42,26 +42,29 @@ def exp_jump(time, depol_time, P0, Pmax, tau, DELTA, T):
     return polarization(P2, Pmax, tau, time - depol_time)
 
 
+# Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
+# Первый аргумент всегда time
+function_handler = {"exp_jump": exp_jump,
+                    "const": const}
+
+
+def get_function_params(name):
+    """Возвращает список пар (имя параметра, значение по умолчанию). Не включает параметр time"""
+    x = inspect.signature(function_handler[name]).parameters
+    return [(i, x[i].default) for i in x if i != 'time']
+
+
 def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
-    if name == "exp_jump":
-        m = Minuit(GenericChi2(exp_jump, x, y, y_err), **kwargs)
-    elif name == "const":
-        m = Minuit(GenericChi2(const, x, y, y_err), **kwargs)
-    else:
-        m = None
-    return m
+    print(kwargs)
+    return Minuit(GenericChi2(function_handler[name], x, y, y_err), throw_nan=True, **kwargs)
 
 
 def fit(m: Minuit):
     m.migrad()
-    # m.print_param()
     return m
 
 
 def get_line(name, x, params):
-    if name == "exp_jump":
-        return [exp_jump(i, *params) for i in x]
-    elif name == "const":
-        return [const(i, *params) for i in x]
-    else:
-        return None
+    """Прменяет функцию name с данными параметрами params к списку x"""
+    return [function_handler[name](i, *params) for i in x]
+
