@@ -28,7 +28,7 @@ class GEM_handler(threading.Thread):
     def get_data(self):
         if config.read_hitdump:
             data = read_hitdump()
-        elif config.idle_mod:
+        elif config.GEM_idle:
             data = self.GEM.debug_data()
         else:
             data = self.GEM.GEM_reco()
@@ -97,11 +97,11 @@ class GEM_handler(threading.Thread):
         self.buf = new_buf[:]
 
     def run(self):
-        try:
-            if not config.idle_mod:
+        if not config.GEM_idle:
+            try:
                 self.GEM.init()
-        except :                            # TODO: уточнить
-            print('Can\'t init GEM!')
+            except:
+                print('Can\'t init GEM!')
         if config.read_hitdump:
             self.get_data()
         else:

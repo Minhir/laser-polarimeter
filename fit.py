@@ -59,7 +59,7 @@ def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
 
 
 def fit(m: Minuit):
-    m.migrad()
+    m.migrad()  # TODO: ncall=1000000 -- вынести в интерфейс?
     return m
 
 

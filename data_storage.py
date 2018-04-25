@@ -47,7 +47,7 @@ class ChunkStorage:
         self.buffer_len = buffer_len
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)  # Аналог self.data_['time'], только в np.array.
-        self.start_time = None
+        self.start_time = None  # TODO: Отвязаться от локального времени
         if not config.read_hitdump:
             self._read_from_files()
         # self._test_full()
@@ -143,18 +143,18 @@ class ChunkStorage:
                         points[name].append(mean)
                         points[name + '_down_error'].append(mean - error)
                         points[name + '_up_error'].append(mean + error)
-
-            points['time'].append(last_time - period / 2 - self.start_time)
+            # points['time'].append(last_time - period / 2 - self.start_time)
+            points['time'].append((last_time - period / 2) * 10**3)
             points['charge'].append(np.mean(data['charge']))
 
             # подшивка точки деполяризатора
 
-            freq = depolarizer.find_closest_freq(last_time - period / 2)
+            freq = depolarizer.find_closest_freq((last_time - period / 2))
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append("%.3f" % energy)
 
-        print(f"time per step = {time.time() - t}")  # замер времени. Удалить.
-        print(f"{100 * len(self.data_) / self.data_.maxlen} %")
+        # print(f"time per step = {time.time() - t}")  # замер времени. Удалить.
+        # print(f"{100 * len(self.data_) / self.data_.maxlen} %")
         # print()
 
         # ~ 50 %, 50 мс

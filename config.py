@@ -21,7 +21,7 @@ class Config:
                 self.depol_bounds = _config['depolarizer']['bounds']
                 self.delta_time = float(_config['data']['delta_time'])
                 self.writing_delta_time = float(_config['data']['writing_delta_time'])
-                self.GEM_idle = bool(_config['debug']['idle_mod'])
+                self.GEM_idle = bool(_config['debug']['GEM_idle'])
                 self.read_hitdump = bool(_config['debug']['read_hitdump'])
                 self.hitdump_dir = _config['debug']['hitdump_dir']
                 self.hitdump_mask = _config['debug']['hitdump_mask']
