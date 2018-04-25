@@ -18,7 +18,7 @@ data:
     delta_time : 0.1  # Время усреднения точек [с] # Разобраться с nan
     writing_delta_time : 10  # Период сохранения данных на диск [с]
 web:
-    port: 5007
+    port: 5006
     allowed_ip:
         - localhost
         - 192.168.163.79  # rokk1m
@@ -30,7 +30,7 @@ web:
         - 192.168.174.14  # kedr-24
         - 192.168.176.68  # l1-3-much
 debug:
-    GEM_idle : True # Использовать смоделированные данные вместо детектора
+    GEM_idle : False # Использовать смоделированные данные вместо детектора
     read_hitdump : False  # читать hitdump
     hitdump_dir : ./data/hitdump
     hitdump_mask : full\.2017-05-13_0[4-9].* #  в формаре регулярного выражения

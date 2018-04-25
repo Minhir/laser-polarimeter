@@ -4,6 +4,8 @@ from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSe
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
+from bokeh.models.tickers import DatetimeTicker
+from bokeh.models.formatters import DatetimeTickFormatter
 
 import numpy as np
 from math import pi
@@ -53,7 +55,7 @@ def app(doc):
     asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
                       active_scroll="wheel_zoom", active_drag="pan", active_inspect=None,
-                      output_backend="webgl", lod_threshold=100)
+                      lod_threshold=100, x_axis_type="datetime")
 
     def draw_selected_area(attr, old, new):
         """Подсветка выделенной для подгонки области"""
@@ -121,6 +123,17 @@ def app(doc):
     period_input = TextInput(value='300', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': int(period_input.value)}
 
+    asym_fig.xaxis[0].formatter = DatetimeTickFormatter( # TODO: учитывать Timezone
+        milliseconds=['%M:%S:%3Nms'],
+        seconds=['%H:%M:%S'],
+        minsec=['%H:%M:%S'],
+        minutes=['%H:%M:%S'],
+        hourmin=['%H:%M:%S'],
+        hours=['%H:%M:%S'],
+        days=["%d.%m"],
+        months=["%Y-%m-%d"],
+    )
+
     def update_data():
         if params['period'] != int(period_input.value):
             asym_source.data = {name: [] for name in names}
@@ -138,8 +151,8 @@ def app(doc):
             depol_list.append(time)
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
+
         asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=450)
-        # doc.add_next_tick_callback(partial(asym_plot, points))
 
     def change_period(attr, old, new):
         if old == new:
@@ -163,7 +176,7 @@ def app(doc):
     for fig_name in fig_names:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
+                     active_scroll="wheel_zoom", lod_threshold=100)
 
         fig.add_layout(Whisker(source=asym_source, base="time",
                                upper=fig_name + '_up_error',
@@ -179,7 +192,7 @@ def app(doc):
     for fig_name in ["rate", "corrected_rate"]:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
+                     active_scroll="wheel_zoom", lod_threshold=100)
 
         fig_name_l = fig_name + "_l"
         fig_name_r = fig_name + "_r"
@@ -206,7 +219,7 @@ def app(doc):
 
     fig = figure(plot_width=width_, plot_height=height_,
                  tools="box_zoom, wheel_zoom, pan, save, reset",
-                 active_scroll="wheel_zoom", output_backend="webgl", lod_threshold=100)
+                 active_scroll="wheel_zoom", lod_threshold=100)
 
     fig.circle('time', "charge", source=asym_source, size=5, color="blue",
                nonselection_alpha=1, nonselection_color="blue")
@@ -217,12 +230,7 @@ def app(doc):
     fig_handler.append((fig, 'charge'))
 
     # Вкладки графика
-    tab1 = Panel(child=asym_fig, title="Y")
-    tabs = []
-    for fig, fig_name in fig_handler:
-        tabs.append(Panel(child=fig, title=fig_name))
-
-    tab_handler = Tabs(tabs=tabs, width=width_)
+    tab_handler = Tabs(tabs=[Panel(child=fig, title=fig_name) for fig, fig_name in fig_handler], width=width_)
 
     # Окно статуса деполяризатора
 
@@ -348,7 +356,7 @@ def app(doc):
 
     fit_button = Button(label="FIT", width=200)
 
-    def make_parameters_table(attr, old, new):
+    def make_parameters_table(attr, old, new):      # TODO: перенести на JavaScript
         """Создание поля ввода данных для подгонки: начальное значение, fix и т.д."""
         name = fit_function_selection_widget.value
 
@@ -410,9 +418,9 @@ def app(doc):
             y_axis = asym_source.data[line_name]
             y_errors = [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])]
 
-        # print(np.any(np.isnan(x_axis))))
-        # print(max(y_axis))
-        # print(np.any(np.isnan(y_errors))
+        if x_axis.size == 0:
+            return
+
         kwargs = {}
         init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
                      for name in fit_handler["input_fields"].keys()}
@@ -433,8 +441,10 @@ def app(doc):
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
-        fit_handler["fit_line"] = asym_fig.line(x_axis,  # TODO: менять кол-во точек
-                                                fit.get_line(name, x_axis, [x['value'] for x in params_]),
+        x_min, x_max = x_axis[0], x_axis[-1]
+        fit_line_x_axis = np.linspace(x_min, x_max, 100)
+        fit_handler["fit_line"] = asym_fig.line(fit_line_x_axis,
+                                                fit.get_line(name, fit_line_x_axis, [x['value'] for x in params_]),
                                                 color="red", line_width=2)
 
     fit_button.on_click(fit_callback)
@@ -466,6 +476,7 @@ def app(doc):
     column_2 = column(row_21, row_22, width=width_ + 50)
     layout_ = row(column_1, column_2)
 
+    # update_data()
     doc.add_root(layout_)
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
     doc.add_periodic_callback(update_data, 1000)         # TODO: подобрать периоды
