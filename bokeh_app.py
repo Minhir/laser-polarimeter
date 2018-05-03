@@ -21,6 +21,7 @@ def app(doc):
     # вспомогательные глобальные
 
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": []}
+    data_names = names  # + ['time_with_utc']
 
     # Гистограмма пятна
     img, img_x_std, img_y_std = hist_storage_.get_hist_with_std()
@@ -77,7 +78,7 @@ def app(doc):
     asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
     asym_box_select_overlay.line_color = "firebrick"
 
-    asym_source = ColumnDataSource({key: [] for key in names})
+    asym_source = ColumnDataSource({key: [] for key in data_names})
     asym_source.on_change('selected', draw_selected_area)
 
     asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
@@ -136,7 +137,7 @@ def app(doc):
 
     def update_data():
         if params['period'] != int(period_input.value):
-            asym_source.data = {name: [] for name in names}
+            asym_source.data = {name: [] for name in data_names}
             params['period'] = int(period_input.value)
             params['last_time'] = 0
             # asym_fig.xaxis[1].ticker.ticks.clear()
@@ -152,7 +153,7 @@ def app(doc):
 
         asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
 
-        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=450)
+        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=250)
 
     def change_period(attr, old, new):
         if old == new:
@@ -234,7 +235,6 @@ def app(doc):
 
     # Окно статуса деполяризатора
 
-    # TODO: часы
     # TODO: временной офсет
 
     depol_status_window = Div(text="Инициализация...", width=500, height=500)
@@ -311,7 +311,7 @@ def app(doc):
     depol_input_initial.on_change('value', change_value_generator("initial"))
     depol_input_final.on_change('value', change_value_generator("final"))
 
-    def update_depol_status():  # TODO: самому пересчитывать начало и конец
+    def update_depol_status():  # TODO: самому пересчитывать начало и конец сканирования по частотам
         depol_start_stop_buttons.active = (0 if depolarizer.is_scan else 1)
 
         depol_status_window.text = f"""
@@ -367,9 +367,9 @@ def app(doc):
                     Paragraph(text="Fix", width=t_width, height=t_height),
                     Paragraph(text="Init value", width=t_width, height=t_height),
                     Paragraph(text="step (error)", width=t_width, height=t_height),
-                    Paragraph(text="bounds", width=t_width, height=t_height),
-                    Paragraph(text="start", width=t_width, height=t_height),
-                    Paragraph(text="stop", width=t_width, height=t_height))]
+                    Paragraph(text="limits", width=t_width, height=t_height),
+                    Paragraph(text="lower_limit", width=t_width, height=t_height),
+                    Paragraph(text="upper_limit", width=t_width, height=t_height))]
 
         fit_handler["input_fields"] = {}
 
@@ -379,17 +379,17 @@ def app(doc):
             fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width,
                                                                          height=t_height, value=str(value))
             fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["bounds"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["start"] = TextInput(width=t_width, height=t_height)
-            fit_handler["input_fields"][param]["stop"] = TextInput(width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["limits"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["lower_limit"] = TextInput(width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["upper_limit"] = TextInput(width=t_width, height=t_height)
 
             rows.append(row(Paragraph(text=param, width=t_width, height=t_height),
                             fit_handler["input_fields"][param]["fix"],
                             fit_handler["input_fields"][param]["Init value"],
                             fit_handler["input_fields"][param]["step (error)"],
-                            fit_handler["input_fields"][param]["bounds"],
-                            fit_handler["input_fields"][param]["start"],
-                            fit_handler["input_fields"][param]["stop"]))
+                            fit_handler["input_fields"][param]["limits"],
+                            fit_handler["input_fields"][param]["lower_limit"],
+                            fit_handler["input_fields"][param]["upper_limit"]))
 
         return column(rows)
 
@@ -428,8 +428,14 @@ def app(doc):
         fix_vals = {"fix_" + name: True for name in fit_handler["input_fields"].keys()
                     if fit_handler["input_fields"][name]["fix"].active}
 
+        limit_vals = {"limit_" + name: (float(fit_handler["input_fields"][name]["lower_limit"].value),
+                                        float(fit_handler["input_fields"][name]["upper_limit"].value))
+                      for name in fit_handler["input_fields"].keys()
+                      if fit_handler["input_fields"][name]["limits"].active}
+
         kwargs.update(init_vals)
         kwargs.update(fix_vals)
+        kwargs.update(limit_vals)
         m = fit.create_fit_func(name, x_axis, y_axis, y_errors, kwargs)
 
         fit.fit(m)  # TODO: в отдельный поток?

@@ -1,7 +1,6 @@
 import bisect
 from math import log, floor
 from threading import Lock
-import time
 
 import numpy_ringbuffer as ringbuffer
 import numpy as np
@@ -81,7 +80,6 @@ class ChunkStorage:
 
     def get_mean_from(self, last_time, period):
         points = {key: [] for key in names}
-        t = time.time()
 
         with lock:
             if len(self.data_) == 0:
@@ -95,12 +93,8 @@ class ChunkStorage:
 
             ind = bisect.bisect_right(self.time_data_, last_time)
 
-            # print(f"A time = {time.time() - t}")
-
             data_ = self.data_[ind:]        # TODO: Убрать лишнее копирование
             time_data_ = self.time_data_[ind:]
-
-            # print(f"C time = {time.time() - t}")
 
         if last_time == 0:
             last_time = time_data_[0]
@@ -143,7 +137,6 @@ class ChunkStorage:
                         points[name].append(mean)
                         points[name + '_down_error'].append(mean - error)
                         points[name + '_up_error'].append(mean + error)
-            # points['time'].append(last_time - period / 2 - self.start_time)
             points['time'].append((last_time - period / 2) * 10**3)
             points['charge'].append(np.mean(data['charge']))
 
@@ -153,15 +146,6 @@ class ChunkStorage:
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append("%.3f" % energy)
 
-        # print(f"time per step = {time.time() - t}")  # замер времени. Удалить.
-        # print(f"{100 * len(self.data_) / self.data_.maxlen} %")
-        # print()
-
-        # ~ 50 %, 50 мс
-        # перешёл на хранение 500_000
-        # 40%, 26 мс
-        # добавил отдельно массив времени
-        # 50%, 6 мс
         return points, last_time
 
 
