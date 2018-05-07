@@ -5,9 +5,6 @@ from config import config
 
 
 def main():
-    # my_server_ = Server('localhost', 9091)
-    # my_server_.start()
-
     GEM_handler_ = GEM_handler(sleeping_time=config.GEM_slipping_time)
     GEM_handler_.start()
 
@@ -17,7 +14,6 @@ def main():
                                 port=config.web_port,
                                 prefix='lsrp')
 
-    bokeh_server_.io_loop.add_callback(BokehServer.show, "/")
     bokeh_server_.io_loop.start()
 
 

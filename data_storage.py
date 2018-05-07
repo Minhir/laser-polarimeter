@@ -17,9 +17,8 @@ chunk = np.dtype([('time', np.float64),
                   ('x_online_asym', np.float32), ('y_online_asym', np.float32),
                   ('x_cog_asym', np.float32), ('y_cog_asym', np.float32),
                   ('counter_l', np.float32), ('counter_r', np.float32),
-                  ('charge', np.float32)])
+                  ('charge', np.float32)])      # TODO: добавить частоту, ослбаление [дБ]
 
-lock = Lock()
 
 names = ['time', 'depol_energy', 'charge']
 
@@ -28,38 +27,81 @@ for rate in ['rate', 'corrected_rate']:
         for error_ in ['', '_up_error', '_down_error']:
             names.append(rate + type_ + error_)
 
+x_y_names = []
+
 for axis in ['x_', 'y_']:
     for reco in ['online_', 'cog_']:
         for type_ in ['l', 'r', 'asym']:
+            x_y_names.append(axis + reco + type_)
             for error_ in ['', '_up_error', '_down_error']:
                 names.append(axis + reco + type_ + error_)
 
 
+if not config.read_hitdump:
+    init_data = file_io.read_from_file()
+else:
+    init_data = {}
+
+
+class FreqMap:
+
+    def __init__(self, buffer_len, init_data):
+        """
+        Хранит карту частот
+
+        :param buffer_len: кол-во хранимых точек
+        """
+        self.buffer_len = buffer_len
+        self.freq_data_ = ringbuffer.RingBuffer(self.buffer_len)
+        self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)
+        for data in init_data['depol_data']:
+            self.freq_data_.append(data['freq'])
+            self.time_data_.append(data['time'])
+        self.lock = Lock()
+
+    def add(self, time_, freq_):
+
+        with self.lock:
+            self.freq_data_.append(freq_)  # TODO: проверить неубывание
+            self.time_data_.append(time_)
+
+        file_io.add_freq_data(time_, freq_)
+
+        if not config.read_hitdump:
+            pass  # TODO: запись в файл
+            # file_io.write_to_file(data)
+
+    def find_closest_freq(self, time_):
+        with self.lock:
+            ind = bisect.bisect_right(self.time_data_, time_)
+        return 0 if ind == -1 else self.freq_data_[ind]
+
+
+freq_storage_ = FreqMap(config.asym_buffer_len, init_data)
+
+
 class ChunkStorage:
 
-    def __init__(self, buffer_len):
+    def __init__(self, buffer_len, init_data):
         """
         Хранит точки асимметрии
 
         :param buffer_len: кол-во хранимых точек
         """
         self.buffer_len = buffer_len
+        self.lock = Lock()
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)  # Аналог self.data_['time'], только в np.array.
+        for data in init_data['asym_data']:
+            self.data_.append(data)
+            self.time_data_.append(data['time'])
         self.start_time = None  # TODO: Отвязаться от локального времени
-        if not config.read_hitdump:
-            self._read_from_files()
         # self._test_full()
 
     def _test_full(self):
         st = self.data_[0]
         for i in range(self.buffer_len):
             self.data_.append(st)
-
-    def _read_from_files(self):
-        for data in file_io.read_from_file():
-            self.data_.append(data)
-            self.time_data_.append(data['time'])
 
     def add(self, chunk_):
         """
@@ -68,12 +110,12 @@ class ChunkStorage:
         """
 
         data = np.array(chunk_, dtype=chunk)
-        with lock:
+        with self.lock:
             self.data_.append(data)  # TODO: проверить неубывание
             self.time_data_.append(data['time'])
 
         if not config.read_hitdump:
-            file_io.write_to_file(data)
+            file_io.add_chunk_data(data)
 
         if self.start_time is None and len(self.data_) != 0:
             self.start_time = self.time_data_[0]
@@ -81,7 +123,7 @@ class ChunkStorage:
     def get_mean_from(self, last_time, period):
         points = {key: [] for key in names}
 
-        with lock:
+        with self.lock:
             if len(self.data_) == 0:
                 return points, last_time
 
@@ -102,7 +144,7 @@ class ChunkStorage:
         while last_time + period < data_['time'][-1]:
 
             left = bisect.bisect_right(time_data_, last_time)
-            right = bisect.bisect_right(time_data_, last_time + period)
+            right = bisect.bisect_right(time_data_, last_time + period, lo=left)
 
             last_time += period
             if left == right:
@@ -128,21 +170,18 @@ class ChunkStorage:
                 points['corrected_rate' + type_ + '_down_error'].append(corrected_rate - corrected_rate_error)
                 points['corrected_rate' + type_ + '_up_error'].append(corrected_rate + corrected_rate_error)
 
-            for axis in ['x_', 'y_']:
-                for reco in ['online_', 'cog_']:
-                    for type_ in ['l', 'r', 'asym']:
-                        name = axis + reco + type_
-                        mean = np.mean(data[name])
-                        error = np.std(data[name]) / (right - left) ** 0.5
-                        points[name].append(mean)
-                        points[name + '_down_error'].append(mean - error)
-                        points[name + '_up_error'].append(mean + error)
+            for name in x_y_names:
+                mean = np.mean(data[name])
+                error = np.std(data[name]) / (right - left) ** 0.5
+                points[name].append(mean)
+                points[name + '_down_error'].append(mean - error)
+                points[name + '_up_error'].append(mean + error)
             points['time'].append((last_time - period / 2) * 10**3)
             points['charge'].append(np.mean(data['charge']))
 
             # подшивка точки деполяризатора
 
-            freq = depolarizer.find_closest_freq((last_time - period / 2))
+            freq = freq_storage_.find_closest_freq(last_time - period / 2)
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append("%.3f" % energy)
 
@@ -223,5 +262,7 @@ class HistStorage:
         return np.sum(self.hists_)
 
 
-data_storage_ = ChunkStorage(config.asym_buffer_len)
+data_storage_ = ChunkStorage(config.asym_buffer_len, init_data)
 hist_storage_ = HistStorage(config.GEM_X, config.GEM_Y, config.hist_buffer_len)
+
+del init_data

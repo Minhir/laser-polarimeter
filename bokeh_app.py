@@ -9,7 +9,7 @@ from bokeh.models.formatters import DatetimeTickFormatter
 
 import numpy as np
 from math import pi
-from data_storage import hist_storage_, data_storage_, names
+from data_storage import hist_storage_, data_storage_, names, freq_storage_
 from depolarizer import depolarizer
 from config import config
 import cpp.GEM as GEM
@@ -113,8 +113,8 @@ def app(doc):
 
     asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
     asym_fig.xaxis[0].axis_label = 'Время'
-    asym_fig.xaxis[1].axis_label = 'Энергия деполяризатора'
-    asym_fig.xaxis[1].major_label_orientation = pi / 2  # 0.52
+    asym_fig.xaxis[1].axis_label = 'Деполяризатор'
+    asym_fig.xaxis[1].major_label_orientation = pi / 2
     depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
 
@@ -443,7 +443,7 @@ def app(doc):
         for i in params_:
             fit_handler["input_fields"][i['name']]["Init value"].value = str(i['value'])
             if i['name'] == "depol_time":
-                freq = depolarizer.find_closest_freq(i['value'] + data_storage_.start_time)
+                freq = freq_storage_.find_closest_freq(i['value'] + data_storage_.start_time)  # TODO: разобраться со временем
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 

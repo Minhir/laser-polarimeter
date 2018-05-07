@@ -6,6 +6,11 @@ import time
 from threading import Thread, Lock
 import bisect
 
+try:
+    import data_storage
+except:
+    data_storage = None
+
 # some helper function to send and receive message
 
 lock_receive = Lock()
@@ -39,7 +44,7 @@ class Depolarizer:
         self.update_thread = None
         self.message_id = 0
         self.is_fmap = False
-        self.fmap = []     # TODO: fix size
+        self.fmap = []
         self._RD = 440.6484586602595
         self._F0 = 818924.144144
 
@@ -232,14 +237,17 @@ class Depolarizer:
             while self.is_fmap:
                 m = receive(sock)
                 for fm in m.fmap.frequency:
-                    self.fmap.append((fm.timestamp*1e-9, fm.frequency))
+                    if data_storage is not None:
+                        data_storage.freq_storage_.add(fm.timestamp*1e-9, fm.frequency)
+                    else:
+                        self.fmap.append((fm.timestamp*1e-9, fm.frequency))
         self.is_fmap = False
 
     def start_fmap(self):
         if not self.is_fmap:
             self.is_fmap = True
             self.fmap_thread = Thread(target=self.get_fmap_in_thread, args=(), name='fmap update')
-            self.fmap_thread.daemon=True
+            self.fmap_thread.daemon = True
             self.fmap_thread.start()
             print("fmap tread started")
 
@@ -254,7 +262,7 @@ class Depolarizer:
 
     def print_fmap(self):
         for time_, freq in self.fmap:
-            print(time, "   ", freq)
+            print(time_, "   ", freq)
 
     def frequency_to_energy(self, f, f0=None, n=None):
         if f0 is None:
