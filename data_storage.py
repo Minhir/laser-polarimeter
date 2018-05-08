@@ -54,22 +54,19 @@ class FreqMap:
         self.buffer_len = buffer_len
         self.freq_data_ = ringbuffer.RingBuffer(self.buffer_len)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)
-        for data in init_data['depol_data']:
-            self.freq_data_.append(data['freq'])
-            self.time_data_.append(data['time'])
+        if 'depol_data' in init_data:
+            for data in init_data['depol_data']:
+                self.freq_data_.append(data['freq'])
+                self.time_data_.append(data['time'])
         self.lock = Lock()
 
     def add(self, time_, freq_):
 
         with self.lock:
-            self.freq_data_.append(freq_)  # TODO: проверить неубывание
+            self.freq_data_.append(freq_)
             self.time_data_.append(time_)
 
         file_io.add_freq_data(time_, freq_)
-
-        if not config.read_hitdump:
-            pass  # TODO: запись в файл
-            # file_io.write_to_file(data)
 
     def find_closest_freq(self, time_):
         with self.lock:
@@ -92,9 +89,10 @@ class ChunkStorage:
         self.lock = Lock()
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)  # Аналог self.data_['time'], только в np.array.
-        for data in init_data['asym_data']:
-            self.data_.append(data)
-            self.time_data_.append(data['time'])
+        if 'asym_data' in init_data:
+            for data in init_data['asym_data']:
+                self.data_.append(data)
+                self.time_data_.append(data['time'])
         self.start_time = None  # TODO: Отвязаться от локального времени
         # self._test_full()
 
@@ -111,7 +109,7 @@ class ChunkStorage:
 
         data = np.array(chunk_, dtype=chunk)
         with self.lock:
-            self.data_.append(data)  # TODO: проверить неубывание
+            self.data_.append(data)
             self.time_data_.append(data['time'])
 
         if not config.read_hitdump:
