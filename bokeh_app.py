@@ -119,7 +119,9 @@ def app(doc):
     asym_fig.xaxis[1].major_label_overrides = {}
 
     hover = asym_fig.select(dict(type=HoverTool))
-    hover.tooltips = [("Время", "@time"), ("Энергия деполяризации", "@depol_energy")]
+    hover.tooltips = [("Время", "@time{%F %T}"), ("Энергия деполяризации", "@depol_energy")]
+    # hover.formatters =
+    # HoverTool(tooltips=[("date", "@x{%F %T}")], ))
 
     period_input = TextInput(value='300', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': int(period_input.value)}
@@ -144,6 +146,9 @@ def app(doc):
             depol_list.clear()
 
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
+
+        utc_plus_7h = 7 * 3600 * 10**3
+        points['time'] = [i + utc_plus_7h for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
 
         for i, time in enumerate(points['time']):
             if points['depol_energy'][i] == "0.000":

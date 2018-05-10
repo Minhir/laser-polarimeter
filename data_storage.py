@@ -38,7 +38,9 @@ for axis in ['x_', 'y_']:
 
 
 if not config.read_hitdump:
+    print("Читаю старые данные...")
     init_data = file_io.read_from_file()
+    print("Данные прочитаны")
 else:
     init_data = {}
 
@@ -139,20 +141,21 @@ class ChunkStorage:
         if last_time == 0:
             last_time = time_data_[0]
 
-        while last_time + period < data_['time'][-1]:
+        while last_time + period < last_data_time:
 
-            left = bisect.bisect_right(time_data_, last_time)
-            right = bisect.bisect_right(time_data_, last_time + period, lo=left)
+            left_ind = bisect.bisect_right(time_data_, last_time)
+            right_ind = bisect.bisect_right(time_data_, last_time + period, lo=left_ind)
+            data_len = right_ind - left_ind
 
             last_time += period
-            if left == right:
+            if data_len == 0:
                 continue
 
-            data = data_[left:right]
+            data = data_[left_ind:right_ind]
 
             for type_ in ['_l', '_r']:
                 name = 'rate' + type_
-                freq = np.sum(data['counter' + type_]) / period
+                freq = data['counter' + type_].sum() / period
                 freq_error = (freq / period * (1 - 2 * freq / config.laser_freq)) ** 0.5
                 points[name].append(freq)
                 points[name + '_down_error'].append(freq - freq_error)
@@ -169,13 +172,14 @@ class ChunkStorage:
                 points['corrected_rate' + type_ + '_up_error'].append(corrected_rate + corrected_rate_error)
 
             for name in x_y_names:
-                mean = np.mean(data[name])
-                error = np.std(data[name]) / (right - left) ** 0.5
+                mean = data[name].mean()
+                error = data[name].std() / (data_len**0.5)
                 points[name].append(mean)
                 points[name + '_down_error'].append(mean - error)
                 points[name + '_up_error'].append(mean + error)
+
             points['time'].append((last_time - period / 2) * 10**3)
-            points['charge'].append(np.mean(data['charge']))
+            points['charge'].append(data['charge'].mean())
 
             # подшивка точки деполяризатора
 
