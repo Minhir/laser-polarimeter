@@ -117,10 +117,15 @@ def app(doc):
     asym_fig.xaxis[1].major_label_orientation = pi / 2
     depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
+    #
+    #
+    #
+    # hover = asym_fig.select(dict(type=HoverTool))
+    # hover.tooltips = [("Время", "@time{%F %T}"), ("Энергия деполяризации", "@depol_energy"),
+    #                   ("Значение", "@")]
+    # hover.formatters = {"time": "datetime"}
 
-    hover = asym_fig.select(dict(type=HoverTool))
-    hover.tooltips = [("Время", "@time{%F %T}"), ("Энергия деполяризации", "@depol_energy")]
-    # hover.formatters =
+
     # HoverTool(tooltips=[("date", "@x{%F %T}")], ))
 
     period_input = TextInput(value='300', title="Время усреднения (с):")
@@ -182,7 +187,7 @@ def app(doc):
     for fig_name in fig_names:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", lod_threshold=100)
+                     active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
         fig.add_layout(Whisker(source=asym_source, base="time",
                                upper=fig_name + '_up_error',
@@ -198,7 +203,7 @@ def app(doc):
     for fig_name in ["rate", "corrected_rate"]:
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", lod_threshold=100)
+                     active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
         fig_name_l = fig_name + "_l"
         fig_name_r = fig_name + "_r"
@@ -225,13 +230,14 @@ def app(doc):
 
     fig = figure(plot_width=width_, plot_height=height_,
                  tools="box_zoom, wheel_zoom, pan, save, reset",
-                 active_scroll="wheel_zoom", lod_threshold=100)
+                 active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
     fig.circle('time', "charge", source=asym_source, size=5, color="blue",
                nonselection_alpha=1, nonselection_color="blue")
 
     fig.yaxis[0].axis_label = "Заряд"
     fig.xaxis[0].axis_label = 'Время'
+    fig.x_range = asym_fig.x_range
 
     fig_handler.append((fig, 'charge'))
 

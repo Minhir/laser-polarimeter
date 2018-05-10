@@ -1,7 +1,6 @@
 import threading
 from time import sleep
 from itertools import chain
-from math import floor
 
 import numpy as np
 
@@ -56,9 +55,8 @@ class GEM_handler(threading.Thread):
         for hit_struct in chain(self.buf, data):
             if self.start_time < end_time:
                 if hit_struct.timestamp < self.start_time + self.delta_time:
-                    r_x, r_y = floor(hit_struct.x_online), floor(hit_struct.y_online)
 
-                    if not ((0 <= r_x < self.X) and (0 <= r_y < self.Y)):
+                    if not ((0 <= hit_struct.x_online < self.X) and (0 <= hit_struct.y_online < self.Y)):
                         continue
 
                     charge += hit_struct.charge
