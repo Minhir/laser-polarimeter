@@ -1,6 +1,8 @@
 from iminuit import Minuit, describe, Struct
 from math import exp
 import inspect
+import numpy as np
+import bottleneck as bn
 
 
 class GenericChi2:
@@ -16,7 +18,9 @@ class GenericChi2:
             )
 
     def __call__(self, *arg):
-        return sum(((self.f(x, *arg)-y) / y_err)**2 for x, y, y_err in zip(self.x, self.y, self.y_err))
+        f_res = np.array([self.f(x, *arg) for x in self.x])
+        s = (f_res - self.y) / self.y_err
+        return bn.ss(s)
 
 
 def polarization(P0, Pmax, tau, t):
@@ -55,11 +59,21 @@ def get_function_params(name):
 
 
 def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
-    return Minuit(GenericChi2(function_handler[name], x, y, y_err), throw_nan=True, **kwargs)
+    y_not_nan = ~np.isnan(y)
+    y_ = y[y_not_nan]
+    if y_.size == 0:
+        raise ValueError("Нет валидных значений")
+    x_ = x[y_not_nan]
+    y_err_ = y_err[y_not_nan]
+    min_val = x_[0]
+    x_ -= min_val
+    x_ /= 10**3
+    return Minuit(GenericChi2(function_handler[name], x_, y_, y_err_), throw_nan=True, **kwargs)
 
 
 def fit(m: Minuit):
     m.migrad()  # TODO: ncall=1000000 -- вынести в интерфейс?
+    # m.hesse()
     return m
 
 

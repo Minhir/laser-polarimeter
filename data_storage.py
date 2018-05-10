@@ -4,6 +4,7 @@ from threading import Lock
 
 import numpy_ringbuffer as ringbuffer
 import numpy as np
+import bottleneck as bn
 
 from config import config
 from depolarizer import depolarizer
@@ -120,34 +121,47 @@ class ChunkStorage:
         if self.start_time is None and len(self.data_) != 0:
             self.start_time = self.time_data_[0]
 
-    def get_mean_from(self, last_time, period):
+    def get_mean_from(self, time_from, period, time_to=None) -> (list, float):
+        """
+        Возвращает данные начиная со времени time_from до времени time_to,
+        усредненные по периоду period.
+
+        :param time_from: при 0 берёт данные с самых малых времён (сек)
+        :param period: период усреднения (сек)
+        :param time_to: при None считает до самого большого времени (сек)
+        :return: points, time_from -- список с усреднёнными данными,
+        метка времени, на которой закончилось усреднение
+        """
         points = {key: [] for key in names}
 
         with self.lock:
             if len(self.data_) == 0:
-                return points, last_time
+                return points, time_from
 
             last_data_time = self.time_data_.pop()
             self.time_data_.append(last_data_time)
 
-            if last_time + period >= last_data_time:
-                return points, last_time
+            if time_to is not None:
+                last_data_time = time_to
 
-            ind = bisect.bisect_right(self.time_data_, last_time)
+            if time_from + period >= last_data_time:
+                return points, time_from
+
+            ind = bisect.bisect_right(self.time_data_, time_from)
 
             data_ = self.data_[ind:]        # TODO: Убрать лишнее копирование
             time_data_ = self.time_data_[ind:]
 
-        if last_time == 0:
-            last_time = time_data_[0]
+        if time_from == 0:
+            time_from = time_data_[0]
 
-        while last_time + period < last_data_time:
+        while time_from + period < last_data_time:
 
-            left_ind = bisect.bisect_right(time_data_, last_time)
-            right_ind = bisect.bisect_right(time_data_, last_time + period, lo=left_ind)
+            left_ind = bisect.bisect_right(time_data_, time_from)
+            right_ind = bisect.bisect_right(time_data_, time_from + period, lo=left_ind)
             data_len = right_ind - left_ind
 
-            last_time += period
+            time_from += period
             if data_len == 0:
                 continue
 
@@ -172,22 +186,23 @@ class ChunkStorage:
                 points['corrected_rate' + type_ + '_up_error'].append(corrected_rate + corrected_rate_error)
 
             for name in x_y_names:
-                mean = data[name].mean()
-                error = data[name].std() / (data_len**0.5)
+                data_len_ = data_len - np.isnan(data[name]).sum()  # Вычел из длины количество nan'ов
+                mean = bn.nanmean(data[name])
+                error = bn.nanstd(data[name]) / (data_len_**0.5)
                 points[name].append(mean)
                 points[name + '_down_error'].append(mean - error)
                 points[name + '_up_error'].append(mean + error)
 
-            points['time'].append((last_time - period / 2) * 10**3)
+            points['time'].append(time_from - period / 2)
             points['charge'].append(data['charge'].mean())
 
             # подшивка точки деполяризатора
 
-            freq = freq_storage_.find_closest_freq(last_time - period / 2)
+            freq = freq_storage_.find_closest_freq(time_from - period / 2)
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append("%.3f" % energy)
 
-        return points, last_time
+        return points, time_from
 
 
 class HistStorage:

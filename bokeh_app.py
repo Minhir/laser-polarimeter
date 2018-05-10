@@ -1,3 +1,6 @@
+import bisect
+from math import pi
+
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend, Label
@@ -6,9 +9,8 @@ from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Pa
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
 from bokeh.models.tickers import DatetimeTicker
 from bokeh.models.formatters import DatetimeTickFormatter
-
 import numpy as np
-from math import pi
+
 from data_storage import hist_storage_, data_storage_, names, freq_storage_
 from depolarizer import depolarizer
 from config import config
@@ -20,8 +22,9 @@ def app(doc):
 
     # вспомогательные глобальные
 
-    fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": []}
+    fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     data_names = names
+    utc_plus_7h = 7 * 3600
 
     datetime_formatter = DatetimeTickFormatter(
         milliseconds=['%M:%S:%3Nms'],
@@ -73,14 +76,12 @@ def app(doc):
         """Подсветка выделенной для подгонки области"""
         if not new.indices:
             return
-        fit_handler["fit_indices"] = sorted(new.indices)
-        left_, right_ = fit_handler["fit_indices"][0], fit_handler["fit_indices"][-1]
-        left_, right_ = asym_source.data['time'][left_], asym_source.data['time'][right_]
-        BoxAnnotation(plot=asym_fig, left=left_, right=right_)
 
-        asym_fig_box_select = BoxAnnotation(left=left_,
+        left_time_, right_time_ = asym_source.data['time'][min(new.indices)], asym_source.data['time'][max(new.indices)]
+        fit_handler["fit_indices"] = (left_time_, right_time_)
+        asym_fig_box_select = BoxAnnotation(left=left_time_,
                                             name="fit_zone",
-                                            right=right_,
+                                            right=right_time_,
                                             fill_alpha=0.1, fill_color='red')
 
         asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']  # TODO: fix не удаляет
@@ -154,8 +155,7 @@ def app(doc):
 
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
 
-        utc_plus_7h = 7 * 3600 * 10**3
-        points['time'] = [i + utc_plus_7h for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
+        points['time'] = [(i + utc_plus_7h) * 10**3 for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
 
         for i, time in enumerate(points['time']):
             if points['depol_energy'][i] == "0.000":
@@ -423,18 +423,23 @@ def app(doc):
 
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
-        fit_indices = fit_handler["fit_indices"]
 
-        if fit_indices:
-            x_axis = [asym_source.data['time'][i] for i in fit_indices]
-            y_axis = [asym_source.data[line_name][i] for i in fit_indices]
-            y_errors = [asym_source.data[line_name + '_up_error'][i] - asym_source.data[line_name][i] for i in fit_indices]
+        if fit_handler["fit_indices"]:
+            left_time_, right_time_, = fit_handler["fit_indices"]
+
+            left_ind_ = bisect.bisect_left(asym_source.data['time'], left_time_)
+            right_ind_ = bisect.bisect_right(asym_source.data['time'], right_time_, lo=left_ind_)
+            print(f'type = {asym_source.data["time"][left_ind_:right_ind_]}')
+
+            x_axis = asym_source.data['time'][left_ind_:right_ind_]
+            y_axis = asym_source.data[line_name][left_ind_:right_ind_]
+            y_errors = asym_source.data[line_name + '_up_error'][left_ind_:right_ind_] - asym_source.data[line_name][left_ind_:right_ind_]
         else:
             x_axis = asym_source.data['time']
             y_axis = asym_source.data[line_name]
-            y_errors = [i - j for i, j in zip(asym_source.data[line_name + '_up_error'], asym_source.data[line_name])]
+            y_errors = asym_source.data[line_name + '_up_error'] - asym_source.data[line_name]
 
-        if x_axis.size == 0:
+        if len(x_axis) == 0:
             return
 
         kwargs = {}
