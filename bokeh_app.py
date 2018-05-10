@@ -21,7 +21,18 @@ def app(doc):
     # вспомогательные глобальные
 
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": []}
-    data_names = names  # + ['time_with_utc']
+    data_names = names
+
+    datetime_formatter = DatetimeTickFormatter(
+        milliseconds=['%M:%S:%3Nms'],
+        seconds=['%H:%M:%S'],
+        minsec=['%H:%M:%S'],
+        minutes=['%H:%M:%S'],
+        hourmin=['%H:%M:%S'],
+        hours=['%H:%M:%S'],
+        days=["%d.%m"],
+        months=["%Y-%m-%d"],
+    )
 
     # Гистограмма пятна
     img, img_x_std, img_y_std = hist_storage_.get_hist_with_std()
@@ -131,16 +142,7 @@ def app(doc):
     period_input = TextInput(value='300', title="Время усреднения (с):")
     params = {'last_time': 0, 'period': int(period_input.value)}
 
-    asym_fig.xaxis[0].formatter = DatetimeTickFormatter( # TODO: учитывать Timezone
-        milliseconds=['%M:%S:%3Nms'],
-        seconds=['%H:%M:%S'],
-        minsec=['%H:%M:%S'],
-        minutes=['%H:%M:%S'],
-        hourmin=['%H:%M:%S'],
-        hours=['%H:%M:%S'],
-        days=["%d.%m"],
-        months=["%Y-%m-%d"],
-    )
+    asym_fig.xaxis[0].formatter = datetime_formatter
 
     def update_data():
         if params['period'] != int(period_input.value):
@@ -197,6 +199,7 @@ def app(doc):
                    nonselection_alpha=1, nonselection_color="black")
         fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"
         fig.xaxis[0].axis_label = 'Время'
+        fig.xaxis[0].formatter = datetime_formatter
         fig.x_range = asym_fig.x_range
         fig_handler.append((fig, fig_name))
 
@@ -225,6 +228,7 @@ def app(doc):
 
         fig.yaxis[0].axis_label = f"<{fig_name}>"
         fig.xaxis[0].axis_label = 'Время'
+        fig.xaxis[0].formatter = datetime_formatter
         fig.x_range = asym_fig.x_range
         fig_handler.append((fig, fig_name))
 
@@ -237,6 +241,7 @@ def app(doc):
 
     fig.yaxis[0].axis_label = "Заряд"
     fig.xaxis[0].axis_label = 'Время'
+    fig.xaxis[0].formatter = datetime_formatter
     fig.x_range = asym_fig.x_range
 
     fig_handler.append((fig, 'charge'))
