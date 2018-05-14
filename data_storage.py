@@ -96,7 +96,6 @@ class ChunkStorage:
             for data in init_data['asym_data']:
                 self.data_.append(data)
                 self.time_data_.append(data['time'])
-        self.start_time = None  # TODO: Отвязаться от локального времени
         # self._test_full()
 
     def _test_full(self):
@@ -117,9 +116,6 @@ class ChunkStorage:
 
         if not config.read_hitdump:
             file_io.add_chunk_data(data)
-
-        if self.start_time is None and len(self.data_) != 0:
-            self.start_time = self.time_data_[0]
 
     def get_mean_from(self, time_from, period, time_to=None) -> (list, float):
         """

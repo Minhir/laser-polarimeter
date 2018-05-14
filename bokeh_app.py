@@ -5,9 +5,8 @@ from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend, Label
 from bokeh.models.callbacks import CustomJS
-from bokeh.models.widgets import RangeSlider, Slider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
+from bokeh.models.widgets import RangeSlider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
-from bokeh.models.tickers import DatetimeTicker
 from bokeh.models.formatters import DatetimeTickFormatter
 import numpy as np
 
@@ -68,9 +67,9 @@ def app(doc):
     # График асимметрии
 
     asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
-                      tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset, hover",
-                      active_scroll="wheel_zoom", active_drag="pan", active_inspect=None,
-                      lod_threshold=100, x_axis_type="datetime")
+                      tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset",
+                      active_scroll="wheel_zoom", active_drag="pan",
+                      lod_threshold=100, x_axis_type="datetime", toolbar_location="below")
 
     def draw_selected_area(attr, old, new):
         """Подсветка выделенной для подгонки области"""
@@ -105,47 +104,57 @@ def app(doc):
     asym_fig.add_layout(y_cog_asym_error)
     asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    y_online_asym = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black",
-                                    nonselection_alpha=1, nonselection_color="black")
-    y_cog_asym = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green",
-                                 nonselection_alpha=1, nonselection_color="green")
+    online_asym_renderer = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black",
+                                           nonselection_alpha=1, nonselection_color="black")
+    cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green",
+                                        nonselection_alpha=1, nonselection_color="green")
 
-    y_online_asym.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
-                                                   code="x.visible = cb_obj.visible"))
+    online_asym_renderer.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
+                                                          code="x.visible = cb_obj.visible"))
 
-    y_cog_asym.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
-                                                code="x.visible = cb_obj.visible"))
+    cog_asym_renderer.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
+                                                       code="x.visible = cb_obj.visible"))
 
-    legend = Legend(items=[
-        ("ONE", [y_online_asym]),
-        ("COG", [y_cog_asym]),
-    ], location=(0, 0), click_policy="hide")
+    legend = Legend(
+        items=[("ONE", [online_asym_renderer]),
+               ("COG", [cog_asym_renderer])],
+        location=(0, 0), click_policy="hide")
 
     asym_fig.add_layout(legend, 'below')
 
-    asym_fig.yaxis[0].axis_label = "<Асимметрия по y [мм]"
+    asym_fig.yaxis[0].axis_label = '<Асимметрия по y [мм]'
     asym_fig.xaxis[0].axis_label = 'Время'
     asym_fig.xaxis[1].axis_label = 'Деполяризатор'
     asym_fig.xaxis[1].major_label_orientation = pi / 2
-    depol_list = []
     asym_fig.xaxis[1].major_label_overrides = {}
-    #
-    #
-    #
-    # hover = asym_fig.select(dict(type=HoverTool))
-    # hover.tooltips = [("Время", "@time{%F %T}"), ("Энергия деполяризации", "@depol_energy"),
-    #                   ("Значение", "@")]
-    # hover.formatters = {"time": "datetime"}
-
-
-    # HoverTool(tooltips=[("date", "@x{%F %T}")], ))
-
-    period_input = TextInput(value='300', title="Время усреднения (с):")
-    params = {'last_time': 0, 'period': int(period_input.value)}
-
     asym_fig.xaxis[0].formatter = datetime_formatter
 
+    # Вывод информации по точке при наведении мыши
+
+    asym_fig.add_tools(HoverTool(
+        renderers=[online_asym_renderer],
+        formatters={"time": "datetime"},
+        tooltips=[("Тип", "ONE"), ("Время", "@time{%F %T}"),
+                  ("Деполяризатор", "@depol_energy"), ("y", "@y_online_asym")]))
+
+    asym_fig.add_tools(HoverTool(
+        renderers=[cog_asym_renderer],
+        formatters={"time": "datetime"},
+        tooltips=[("Тип", "COG"), ("Время", "@time{%F %T}"),
+                  ("Деполяризатор", "@depol_energy"), ("y", "@y_cog_asym")]))
+
+    # Окно ввода периода усреднения
+    period_input = TextInput(value='300', title="Время усреднения (с):")
+
+    # Глобальный список параметров, для сохранения результатов запросов к data_storage
+    params = {'last_time': 0, 'period': int(period_input.value)}
+
+    depol_list = []
+
     def update_data():
+        """
+        Обновляет данные для пользовательского интерфейса, собирая их у data_storage
+        """
         if params['period'] != int(period_input.value):
             asym_source.data = {name: [] for name in data_names}
             params['period'] = int(period_input.value)
@@ -251,21 +260,19 @@ def app(doc):
 
     # Окно статуса деполяризатора
 
-    # TODO: временной офсет
-
     depol_status_window = Div(text="Инициализация...", width=500, height=500)
 
     depol_start_stop_buttons = RadioButtonGroup(labels=["Старт", "Стоп"],
                                                 active=(0 if depolarizer.is_scan else 1))
-    fake_depol_button = Button(label="Деполяризовать", width=200)
 
+    fake_depol_button = Button(label="Деполяризовать", width=200)
     fake_depol_button.on_click(GEM.depolarize)
 
     depol_input_harmonic_number = TextInput(value=str('%.1f' % depolarizer.harmonic_number),
                                             title=f"Номер гармоники", width=150)
 
     depol_input_attenuation = TextInput(value=str('%.1f' % depolarizer.attenuation),
-                                            title=f"Аттенюатор (дБ)", width=150)
+                                        title=f"Аттенюатор (дБ)", width=150)
 
     depol_input_speed = TextInput(value=str(depolarizer.frequency_to_energy(depolarizer.speed, n=0)),
                                   title=f"Скорость ({'%.1f' % depolarizer.speed} Гц):", width=150)
@@ -287,6 +294,7 @@ def app(doc):
                   "attenuation": (depol_input_attenuation, depolarizer.set_attenuation)}
 
     def change_value_generator(value_name):
+        """Возвращает callback функцию для параметра value_name деполяризатора"""
         def change_value(attr, old, new):
             if float(old) == float(new):
                 return
@@ -328,6 +336,8 @@ def app(doc):
     depol_input_final.on_change('value', change_value_generator("final"))
 
     def update_depol_status():  # TODO: самому пересчитывать начало и конец сканирования по частотам
+        """Обновляет статус деполяризатора,
+        если какое-то значение поменялось другим пользователем"""
         depol_start_stop_buttons.active = (0 if depolarizer.is_scan else 1)
 
         depol_status_window.text = f"""
@@ -425,11 +435,10 @@ def app(doc):
         line_name = fit_line_selection_widget.value
 
         if fit_handler["fit_indices"]:
-            left_time_, right_time_, = fit_handler["fit_indices"]
+            left_time_, right_time_ = fit_handler["fit_indices"]
 
             left_ind_ = bisect.bisect_left(asym_source.data['time'], left_time_)
             right_ind_ = bisect.bisect_right(asym_source.data['time'], right_time_, lo=left_ind_)
-            print(f'type = {asym_source.data["time"][left_ind_:right_ind_]}')
 
             x_axis = asym_source.data['time'][left_ind_:right_ind_]
             y_axis = asym_source.data[line_name][left_ind_:right_ind_]
@@ -442,7 +451,6 @@ def app(doc):
         if len(x_axis) == 0:
             return
 
-        kwargs = {}
         init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
                      for name in fit_handler["input_fields"].keys()}
 
@@ -454,29 +462,35 @@ def app(doc):
                       for name in fit_handler["input_fields"].keys()
                       if fit_handler["input_fields"][name]["limits"].active}
 
+        kwargs = {}
         kwargs.update(init_vals)
         kwargs.update(fix_vals)
         kwargs.update(limit_vals)
-        m = fit.create_fit_func(name, x_axis, y_axis, y_errors, kwargs)
+
+        # Предобработка времени, перевод в секунды, вычитание сдвига (для лучшей подгонки)
+        x_time = x_axis / 10**3  # Перевёл в секунды
+        x_min = x_time[0]
+        x_time -= x_min  # Привёл время в интервал от 0
+        x_max = x_time[-1]
+        fit_line_x_axis = np.linspace(0, x_max, 100)  # 100 точек для отрисовки результата подгонки
+
+        m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
 
         fit.fit(m)  # TODO: в отдельный поток?
         params_ = m.get_param_states()
-        for i in params_:
-            fit_handler["input_fields"][i['name']]["Init value"].value = str(i['value'])
-            if i['name'] == "depol_time":
-                freq = freq_storage_.find_closest_freq(i['value'] + data_storage_.start_time)  # TODO: разобраться со временем
+        for param in params_:
+            fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
+            if param['name'] == "depol_time":
+                freq = freq_storage_.find_closest_freq(param['value'] + x_min)
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
-
-        x_min, x_max = x_axis[0], x_axis[-1]
-        fit_line_x_axis = np.linspace(x_min, x_max, 100)
-        fit_handler["fit_line"] = asym_fig.line(fit_line_x_axis,
+        fit_handler["fit_line"] = asym_fig.line(x_axis,
                                                 fit.get_line(name, fit_line_x_axis, [x['value'] for x in params_]),
                                                 color="red", line_width=2)
 
     fit_button.on_click(fit_callback)
 
-    # Инициализация bokeh app
+    # Инициализация bokeh app, расположение виджетов
     column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
     widgets_ = WidgetBox(depol_start_stop_buttons,
                          depol_input_harmonic_number, depol_input_attenuation, depol_input_speed,

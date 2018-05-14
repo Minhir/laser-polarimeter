@@ -65,9 +65,6 @@ def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
         raise ValueError("Нет валидных значений")
     x_ = x[y_not_nan]
     y_err_ = y_err[y_not_nan]
-    min_val = x_[0]
-    x_ -= min_val
-    x_ /= 10**3
     return Minuit(GenericChi2(function_handler[name], x_, y_, y_err_), throw_nan=True, **kwargs)
 
 
