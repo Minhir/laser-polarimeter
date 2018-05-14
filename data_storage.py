@@ -143,6 +143,7 @@ class ChunkStorage:
             if time_from + period >= last_data_time:
                 return points, time_from
 
+            # Быстро (O(log N)) находит индекс элемента начиная с которого все больше time_from,
             ind = bisect.bisect_right(self.time_data_, time_from)
 
             data_ = self.data_[ind:]        # TODO: Убрать лишнее копирование
@@ -152,7 +153,8 @@ class ChunkStorage:
             time_from = time_data_[0]
 
         while time_from + period < last_data_time:
-
+            
+            # Находит левый и правые индексы элементов между time_from и time_from + period
             left_ind = bisect.bisect_right(time_data_, time_from)
             right_ind = bisect.bisect_right(time_data_, time_from + period, lo=left_ind)
             data_len = right_ind - left_ind
@@ -161,8 +163,10 @@ class ChunkStorage:
             if data_len == 0:
                 continue
 
+            # Копирует нужный интервал данных один раз, иначе каждое обращение к срезу -- копирование.
             data = data_[left_ind:right_ind]
 
+            # Подсчет разных характеристик для интервала, формирование точки
             for type_ in ['_l', '_r']:
                 name = 'rate' + type_
                 freq = data['counter' + type_].sum() / period
@@ -170,7 +174,6 @@ class ChunkStorage:
                 points[name].append(freq)
                 points[name + '_down_error'].append(freq - freq_error)
                 points[name + '_up_error'].append(freq + freq_error)
-
                 try:
                     corrected_rate = - config.laser_freq / 2 * log(1 - freq / config.laser_freq * 2)
                     corrected_rate_error = freq_error / (1 - freq / config.laser_freq * 2)
