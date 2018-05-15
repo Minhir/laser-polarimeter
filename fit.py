@@ -31,6 +31,10 @@ def const(time, p0=0):
     return p0
 
 
+def linear(time, a=0, b=0):
+    return a * time + b
+
+
 def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
     if time < depol_time - T / 2:
@@ -49,7 +53,8 @@ def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
 # Первый аргумент всегда time
 function_handler = {"exp_jump": exp_jump,
-                    "const": const}
+                    "const": const,
+                    "linear": linear}
 
 
 def get_function_params(name):
@@ -69,7 +74,7 @@ def create_fit_func(name, x, y, y_err, kwargs) -> Minuit:
 
 
 def fit(m: Minuit):
-    m.migrad()  # TODO: ncall=1000000 -- вынести в интерфейс?
+    m.migrad()
     # m.hesse()
     return m
 

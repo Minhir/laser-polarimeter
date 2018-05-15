@@ -83,7 +83,7 @@ def app(doc):
                                             right=right_time_,
                                             fill_alpha=0.1, fill_color='red')
 
-        asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']  # TODO: fix не удаляет
+        asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']
         asym_fig.add_layout(asym_fig_box_select)
 
     asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
@@ -376,9 +376,12 @@ def app(doc):
                                        options=["y_online_asym", "y_cog_asym"],
                                        width=200)
 
-    fit_function_selection_widget = Select(title="Fitting function:", value="exp_jump",
-                                           options=["exp_jump", "const"],
-                                           width=200)
+    options = [name for name in fit.function_handler.keys()]
+    if not options:
+        raise IndexError("Пустой function_handler в fit.py")
+
+    fit_function_selection_widget = Select(title="Fitting function:", value=options[0],
+                                           options=options, width=200)
 
     fit_button = Button(label="FIT", width=200)
 
@@ -468,11 +471,17 @@ def app(doc):
         kwargs.update(limit_vals)
 
         # Предобработка времени, перевод в секунды, вычитание сдвига (для лучшей подгонки)
-        x_time = x_axis / 10**3  # Перевёл в секунды
+        x_time = x_axis / 10**3  # Перевёл в секунды        TODO: вычиать левую границу графику
         x_min = x_time[0]
         x_time -= x_min  # Привёл время в интервал от 0
         x_max = x_time[-1]
-        fit_line_x_axis = np.linspace(0, x_max, 100)  # 100 точек для отрисовки результата подгонки
+
+        # Создание точек, которые передадутся в подогнанную функцию с параметрами,
+        # и точек, которые соответсвуют реальным временам на графике (т.е. без смещения к 0)
+
+        points_amount = 300
+        fit_line_real_x_axis = np.linspace(x_axis[0], x_axis[-1], points_amount)
+        fit_line_x_axis = np.linspace(0, x_max, points_amount)
 
         m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
 
@@ -484,7 +493,8 @@ def app(doc):
                 freq = freq_storage_.find_closest_freq(param['value'] + x_min)
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
-        fit_handler["fit_line"] = asym_fig.line(x_axis,
+
+        fit_handler["fit_line"] = asym_fig.line(fit_line_real_x_axis,
                                                 fit.get_line(name, fit_line_x_axis, [x['value'] for x in params_]),
                                                 color="red", line_width=2)
 
