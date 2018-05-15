@@ -24,6 +24,7 @@ def app(doc):
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     data_names = names
     utc_plus_7h = 7 * 3600
+    fit_line_points_amount = 300
 
     datetime_formatter = DatetimeTickFormatter(
         milliseconds=['%M:%S:%3Nms'],
@@ -437,22 +438,20 @@ def app(doc):
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
 
-        if fit_handler["fit_indices"]:
-            left_time_, right_time_ = fit_handler["fit_indices"]
-
-            left_ind_ = bisect.bisect_left(asym_source.data['time'], left_time_)
-            right_ind_ = bisect.bisect_right(asym_source.data['time'], right_time_, lo=left_ind_)
-
-            x_axis = asym_source.data['time'][left_ind_:right_ind_]
-            y_axis = asym_source.data[line_name][left_ind_:right_ind_]
-            y_errors = asym_source.data[line_name + '_up_error'][left_ind_:right_ind_] - asym_source.data[line_name][left_ind_:right_ind_]
-        else:
-            x_axis = asym_source.data['time']
-            y_axis = asym_source.data[line_name]
-            y_errors = asym_source.data[line_name + '_up_error'] - asym_source.data[line_name]
-
-        if len(x_axis) == 0:
+        if not fit_handler["fit_indices"]:
             return
+
+        left_time_, right_time_ = fit_handler["fit_indices"]
+
+        left_ind_ = bisect.bisect_left(asym_source.data['time'], left_time_)
+        right_ind_ = bisect.bisect_right(asym_source.data['time'], right_time_, lo=left_ind_)
+
+        if left_ind_ == right_ind_:
+            return
+
+        x_axis = asym_source.data['time'][left_ind_:right_ind_]
+        y_axis = asym_source.data[line_name][left_ind_:right_ind_]
+        y_errors = asym_source.data[line_name + '_up_error'][left_ind_:right_ind_] - asym_source.data[line_name][left_ind_:right_ind_]
 
         init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
                      for name in fit_handler["input_fields"].keys()}
@@ -471,17 +470,15 @@ def app(doc):
         kwargs.update(limit_vals)
 
         # Предобработка времени, перевод в секунды, вычитание сдвига (для лучшей подгонки)
-        x_time = x_axis / 10**3  # Перевёл в секунды        TODO: вычиать левую границу графику
-        x_min = x_time[0]
-        x_time -= x_min  # Привёл время в интервал от 0
-        x_max = x_time[-1]
+        x_time = x_axis - left_time_  # Привёл время в интервал от 0
+        x_time /= 10**3               # Перевёл в секунды        TODO: вычиать левую границу графику
 
         # Создание точек, которые передадутся в подогнанную функцию с параметрами,
         # и точек, которые соответсвуют реальным временам на графике (т.е. без смещения к 0)
 
-        points_amount = 300
-        fit_line_real_x_axis = np.linspace(x_axis[0], x_axis[-1], points_amount)
-        fit_line_x_axis = np.linspace(0, x_max, points_amount)
+        fit_line_real_x_axis = np.linspace(left_time_, right_time_, fit_line_points_amount)
+        fit_line_x_axis = fit_line_real_x_axis - left_time_
+        fit_line_x_axis /= 10**3
 
         m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
 
@@ -490,7 +487,7 @@ def app(doc):
         for param in params_:
             fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
             if param['name'] == "depol_time":
-                freq = freq_storage_.find_closest_freq(param['value'] + x_min)
+                freq = freq_storage_.find_closest_freq(param['value'] + left_time_)
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
