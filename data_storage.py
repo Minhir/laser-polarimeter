@@ -199,7 +199,7 @@ class ChunkStorage:
 
             freq = freq_storage_.find_closest_freq(time_from - period / 2)
             energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
-            points['depol_energy'].append("%.3f" % energy)
+            points['depol_energy'].append(round(energy, 3))
 
         return points, time_from
 

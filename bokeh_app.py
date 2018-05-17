@@ -3,11 +3,12 @@ from math import pi
 
 from bokeh.layouts import row, column, WidgetBox
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend, Label
+from bokeh.models import (ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend,
+                          Label, DataRange1d)
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets import RangeSlider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
-from bokeh.models.formatters import DatetimeTickFormatter
+from bokeh.models.formatters import DatetimeTickFormatter, FuncTickFormatter
 import numpy as np
 
 from data_storage import hist_storage_, data_storage_, names, freq_storage_
@@ -21,9 +22,11 @@ def app(doc):
 
     # вспомогательные глобальные
 
-    fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     data_names = names
+    data_source = ColumnDataSource({key: [] for key in data_names})
+    fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     utc_plus_7h = 7 * 3600
+    time_coef = 10**3  # Пересчёт времени в мс для формата datetime Bokeh
     fit_line_points_amount = 300
 
     datetime_formatter = DatetimeTickFormatter(
@@ -69,45 +72,67 @@ def app(doc):
 
     asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset",
-                      active_scroll="wheel_zoom", active_drag="pan",
-                      lod_threshold=100, x_axis_type="datetime", toolbar_location="below")
+                      active_scroll="wheel_zoom", active_drag="pan", toolbar_location="below",
+                      lod_threshold=100, x_axis_location=None, x_range=DataRange1d())
+
+    asym_fig.extra_x_ranges = {"time_range": asym_fig.x_range,
+                               "depolarizer": asym_fig.x_range,
+                               "sec": asym_fig.x_range}
+
+    depol_axis = LinearAxis(x_range_name="depolarizer", axis_label='Деполяризатор',
+                            major_label_overrides={}, major_label_orientation=pi/2)
+
+    sec_axis = LinearAxis(x_range_name='sec', axis_label='Секунды', visible=False)  # Секундная ось при подгонке
+
+    asym_fig.add_layout(LinearAxis(x_range_name="time_range", axis_label='Время',
+                                   formatter=datetime_formatter), 'below')
+
+    asym_fig.add_layout(depol_axis, 'below')
+    asym_fig.add_layout(sec_axis, 'above')
 
     def draw_selected_area(attr, old, new):
         """Подсветка выделенной для подгонки области"""
-        if not new.indices:
+
+        # Удаляет предыдущую выделенную область
+        asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']
+        fit_handler["fit_indices"] = tuple()
+
+        if new.indices:
+            left_time_, right_time_ = data_source.data['time'][min(new.indices)], data_source.data['time'][max(new.indices)]
+            if left_time_ != right_time_:
+                fit_handler["fit_indices"] = (left_time_, right_time_)
+
+        if not fit_handler["fit_indices"]:
+            sec_axis.visible = False
             return
 
-        left_time_, right_time_ = asym_source.data['time'][min(new.indices)], asym_source.data['time'][max(new.indices)]
-        fit_handler["fit_indices"] = (left_time_, right_time_)
         asym_fig_box_select = BoxAnnotation(left=left_time_,
                                             name="fit_zone",
                                             right=right_time_,
                                             fill_alpha=0.1, fill_color='red')
 
-        asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']
         asym_fig.add_layout(asym_fig_box_select)
+        sec_axis.bounds = (left_time_, right_time_)
+        sec_axis.formatter = FuncTickFormatter(code=f"return ((tick - {left_time_}) / {time_coef}).toFixed(1);")
+        sec_axis.visible = True
 
     asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
     asym_box_select_overlay.line_color = "firebrick"
 
-    asym_source = ColumnDataSource({key: [] for key in data_names})
-    asym_source.on_change('selected', draw_selected_area)
+    data_source.on_change('selected', draw_selected_area)
 
-    asym_fig.extra_x_ranges["depolarizer"] = asym_fig.x_range  # Связал ось деполяризатора с осью времени
-
-    y_online_asym_error = Whisker(source=asym_source, base="time",
+    y_online_asym_error = Whisker(source=data_source, base="time",
                                   upper="y_online_asym_up_error", lower="y_online_asym_down_error")
 
-    y_cog_asym_error = Whisker(source=asym_source, base="time",
+    y_cog_asym_error = Whisker(source=data_source, base="time",
                                upper="y_cog_asym_up_error", lower="y_cog_asym_down_error")
 
     asym_fig.add_layout(y_online_asym_error)
     asym_fig.add_layout(y_cog_asym_error)
-    asym_fig.add_layout(LinearAxis(x_range_name="depolarizer"), 'below')
 
-    online_asym_renderer = asym_fig.circle('time', 'y_online_asym', source=asym_source, size=5, color="black",
+    online_asym_renderer = asym_fig.circle('time', 'y_online_asym', source=data_source, size=5, color="black",
                                            nonselection_alpha=1, nonselection_color="black")
-    cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=asym_source, size=5, color="green",
+    cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=data_source, size=5, color="green",
                                         nonselection_alpha=1, nonselection_color="green")
 
     online_asym_renderer.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
@@ -122,13 +147,6 @@ def app(doc):
         location=(0, 0), click_policy="hide")
 
     asym_fig.add_layout(legend, 'below')
-
-    asym_fig.yaxis[0].axis_label = '<Асимметрия по y [мм]'
-    asym_fig.xaxis[0].axis_label = 'Время'
-    asym_fig.xaxis[1].axis_label = 'Деполяризатор'
-    asym_fig.xaxis[1].major_label_orientation = pi / 2
-    asym_fig.xaxis[1].major_label_overrides = {}
-    asym_fig.xaxis[0].formatter = datetime_formatter
 
     # Вывод информации по точке при наведении мыши
 
@@ -157,25 +175,25 @@ def app(doc):
         Обновляет данные для пользовательского интерфейса, собирая их у data_storage
         """
         if params['period'] != int(period_input.value):
-            asym_source.data = {name: [] for name in data_names}
+            data_source.data = {name: [] for name in data_names}
             params['period'] = int(period_input.value)
             params['last_time'] = 0
-            # asym_fig.xaxis[1].ticker.ticks.clear()
+            depol_axis.ticker.ticks.clear()
+            depol_axis.major_label_overrides.clear()
             depol_list.clear()
 
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
 
-        points['time'] = [(i + utc_plus_7h) * 10**3 for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
+        points['time'] = [(i + utc_plus_7h) * time_coef for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
 
         for i, time in enumerate(points['time']):
-            if points['depol_energy'][i] == "0.000":
+            if points['depol_energy'][i] == 0:
                 continue
-            asym_fig.xaxis[1].major_label_overrides[time] = points['depol_energy'][i]
+            depol_axis.major_label_overrides[time] = str(points['depol_energy'][i])
             depol_list.append(time)
 
-        asym_fig.xaxis[1].ticker = depol_list       # TODO: поменять
-
-        asym_source.stream({key: np.array(val) for key, val in points.items()}, rollover=250)
+        depol_axis.ticker = depol_list
+        data_source.stream({key: np.array(val) for key, val in points.items()}, rollover=250)
 
     def change_period(attr, old, new):
         if old == new:
@@ -201,11 +219,11 @@ def app(doc):
                      tools="box_zoom, wheel_zoom, pan, save, reset",
                      active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
-        fig.add_layout(Whisker(source=asym_source, base="time",
+        fig.add_layout(Whisker(source=data_source, base="time",
                                upper=fig_name + '_up_error',
                                lower=fig_name + '_down_error'))
 
-        fig.circle('time', fig_name, source=asym_source, size=5, color="black",
+        fig.circle('time', fig_name, source=data_source, size=5, color="black",
                    nonselection_alpha=1, nonselection_color="black")
         fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"
         fig.xaxis[0].axis_label = 'Время'
@@ -220,20 +238,20 @@ def app(doc):
 
         fig_name_l = fig_name + "_l"
         fig_name_r = fig_name + "_r"
-        fig.add_layout(Whisker(source=asym_source, base="time",
+        fig.add_layout(Whisker(source=data_source, base="time",
                                upper=fig_name_l + '_up_error',
                                lower=fig_name_l + '_down_error', line_color='blue',
                                lower_head=None, upper_head=None))
 
-        fig.add_layout(Whisker(source=asym_source, base="time",
+        fig.add_layout(Whisker(source=data_source, base="time",
                        upper=fig_name_r + '_up_error',
                        lower=fig_name_r + '_down_error', line_color='red',
                        lower_head=None, upper_head=None))
 
-        fig.circle('time', fig_name_l, source=asym_source, size=5, color="blue",
+        fig.circle('time', fig_name_l, source=data_source, size=5, color="blue",
                    nonselection_alpha=1, nonselection_color="blue")
 
-        fig.circle('time', fig_name_r, source=asym_source, size=5, color="red",
+        fig.circle('time', fig_name_r, source=data_source, size=5, color="red",
                    nonselection_alpha=1, nonselection_color="red")
 
         fig.yaxis[0].axis_label = f"<{fig_name}>"
@@ -246,7 +264,7 @@ def app(doc):
                  tools="box_zoom, wheel_zoom, pan, save, reset",
                  active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
-    fig.circle('time', "charge", source=asym_source, size=5, color="blue",
+    fig.circle('time', "charge", source=data_source, size=5, color="blue",
                nonselection_alpha=1, nonselection_color="blue")
 
     fig.yaxis[0].axis_label = "Заряд"
@@ -433,25 +451,25 @@ def app(doc):
     clear_fit_button.on_click(clear_fit)
 
     def fit_callback():
-        clear_fit()
+        if not fit_handler["fit_indices"]:
+            return
 
         name = fit_function_selection_widget.value
         line_name = fit_line_selection_widget.value
 
-        if not fit_handler["fit_indices"]:
-            return
-
         left_time_, right_time_ = fit_handler["fit_indices"]
 
-        left_ind_ = bisect.bisect_left(asym_source.data['time'], left_time_)
-        right_ind_ = bisect.bisect_right(asym_source.data['time'], right_time_, lo=left_ind_)
+        left_ind_ = bisect.bisect_left(data_source.data['time'], left_time_)
+        right_ind_ = bisect.bisect_right(data_source.data['time'], right_time_, lo=left_ind_)
 
         if left_ind_ == right_ind_:
             return
 
-        x_axis = asym_source.data['time'][left_ind_:right_ind_]
-        y_axis = asym_source.data[line_name][left_ind_:right_ind_]
-        y_errors = asym_source.data[line_name + '_up_error'][left_ind_:right_ind_] - asym_source.data[line_name][left_ind_:right_ind_]
+        clear_fit()
+
+        x_axis = data_source.data['time'][left_ind_:right_ind_]
+        y_axis = data_source.data[line_name][left_ind_:right_ind_]
+        y_errors = data_source.data[line_name + '_up_error'][left_ind_:right_ind_] - data_source.data[line_name][left_ind_:right_ind_]
 
         init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
                      for name in fit_handler["input_fields"].keys()}
@@ -471,14 +489,14 @@ def app(doc):
 
         # Предобработка времени, перевод в секунды, вычитание сдвига (для лучшей подгонки)
         x_time = x_axis - left_time_  # Привёл время в интервал от 0
-        x_time /= 10**3               # Перевёл в секунды        TODO: вычиать левую границу графику
+        x_time /= time_coef             # Перевёл в секунды
 
         # Создание точек, которые передадутся в подогнанную функцию с параметрами,
         # и точек, которые соответсвуют реальным временам на графике (т.е. без смещения к 0)
 
         fit_line_real_x_axis = np.linspace(left_time_, right_time_, fit_line_points_amount)
         fit_line_x_axis = fit_line_real_x_axis - left_time_
-        fit_line_x_axis /= 10**3
+        fit_line_x_axis /= time_coef
 
         m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
 
@@ -524,9 +542,11 @@ def app(doc):
     column_2 = column(row_21, row_22, width=width_ + 50)
     layout_ = row(column_1, column_2)
 
-    # update_data()
-    doc.add_root(layout_)
+    # Настройка документа Bokeh
+
+    update_data()
     doc.add_periodic_callback(hist_update, 1000)         # TODO запихнуть в один callback
     doc.add_periodic_callback(update_data, 1000)         # TODO: подобрать периоды
     doc.add_periodic_callback(update_depol_status, 1000)
     doc.title = "Laser polarimeter"
+    doc.add_root(layout_)
