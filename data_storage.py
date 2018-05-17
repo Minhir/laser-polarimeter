@@ -11,11 +11,11 @@ from depolarizer import depolarizer
 from file_io import file_io
 
 chunk = np.dtype([('time', np.float64),
-                  ('x_online_l', np.float32), ('y_online_l', np.float32),
-                  ('x_online_r', np.float32), ('y_online_r', np.float32),
+                  ('x_one_l', np.float32), ('y_one_l', np.float32),
+                  ('x_one_r', np.float32), ('y_one_r', np.float32),
                   ('x_cog_l', np.float32), ('y_cog_l', np.float32),
                   ('x_cog_r', np.float32), ('y_cog_r', np.float32),
-                  ('x_online_asym', np.float32), ('y_online_asym', np.float32),
+                  ('x_one_asym', np.float32), ('y_one_asym', np.float32),
                   ('x_cog_asym', np.float32), ('y_cog_asym', np.float32),
                   ('counter_l', np.float32), ('counter_r', np.float32),
                   ('charge', np.float32)])      # TODO: добавить частоту, ослбаление [дБ]
@@ -31,7 +31,7 @@ for rate in ['rate', 'corrected_rate']:
 x_y_names = []
 
 for axis in ['x_', 'y_']:
-    for reco in ['online_', 'cog_']:
+    for reco in ['one_', 'cog_']:
         for type_ in ['l', 'r', 'asym']:
             x_y_names.append(axis + reco + type_)
             for error_ in ['', '_up_error', '_down_error']:

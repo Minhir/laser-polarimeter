@@ -76,19 +76,22 @@ std::vector<hit_struct> debug_data()
 {
     std::vector<hit_struct> hit_vec;
     int points_amount = 800;
-    hit_vec.reserve(points_amount);
+
     double sec_ = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000. - 1;
 
     static std::default_random_engine generator(sec_);
     std::normal_distribution<float> x_distribution(-50.0, 50.0);
     points_amount += x_distribution(generator);
 
+    hit_vec.reserve(points_amount);
     if (start_time == 0) start_time = sec_;
     for (int i = 0; i < points_amount; ++i)
     {
         auto hit_pair = get_model_hit();
-        hit_vec.push_back(hit_struct{hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
-                                     hit_pair.first, hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time) * 1.1f,
+        hit_vec.push_back(hit_struct{hit_pair.first + x_distribution(generator) / 500,
+                                     hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time),
+                                     hit_pair.first + x_distribution(generator) / 500,
+                                     hit_pair.second + (i % 2) * (float)polarization(0, 10, 15, sec_ - start_time) * 1.1f,
                                      1.f,
                                      sec_,
                                      i % 2});

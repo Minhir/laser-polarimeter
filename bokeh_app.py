@@ -98,7 +98,9 @@ def app(doc):
         fit_handler["fit_indices"] = tuple()
 
         if new.indices:
-            left_time_, right_time_ = data_source.data['time'][min(new.indices)], data_source.data['time'][max(new.indices)]
+            left_time_ = data_source.data['time'][min(new.indices)]
+            right_time_ = data_source.data['time'][max(new.indices)]
+
             if left_time_ != right_time_:
                 fit_handler["fit_indices"] = (left_time_, right_time_)
 
@@ -121,46 +123,53 @@ def app(doc):
 
     data_source.on_change('selected', draw_selected_area)
 
-    y_online_asym_error = Whisker(source=data_source, base="time",
-                                  upper="y_online_asym_up_error", lower="y_online_asym_down_error")
+    y_one_asym_error = Whisker(source=data_source, base="time",
+                               upper="y_one_asym_up_error", lower="y_one_asym_down_error")
 
     y_cog_asym_error = Whisker(source=data_source, base="time",
                                upper="y_cog_asym_up_error", lower="y_cog_asym_down_error")
 
-    asym_fig.add_layout(y_online_asym_error)
-    asym_fig.add_layout(y_cog_asym_error)
+    x_one_asym_error = Whisker(source=data_source, base="time",
+                               upper="x_one_asym_up_error", lower="x_one_asym_down_error")
 
-    online_asym_renderer = asym_fig.circle('time', 'y_online_asym', source=data_source, size=5, color="black",
-                                           nonselection_alpha=1, nonselection_color="black")
-    cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=data_source, size=5, color="green",
-                                        nonselection_alpha=1, nonselection_color="green")
+    x_cog_asym_error = Whisker(source=data_source, base="time",
+                               upper="x_cog_asym_up_error", lower="x_cog_asym_down_error")
 
-    online_asym_renderer.js_on_change('visible', CustomJS(args=dict(x=y_online_asym_error),
-                                                          code="x.visible = cb_obj.visible"))
+    y_one_asym_renderer = asym_fig.circle('time', 'y_one_asym', source=data_source, name='y_one_asym',
+                                          color="black", nonselection_alpha=1, nonselection_color="black")
 
-    cog_asym_renderer.js_on_change('visible', CustomJS(args=dict(x=y_cog_asym_error),
-                                                       code="x.visible = cb_obj.visible"))
+    y_cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=data_source, name='y_cog_asym',
+                                          color="green", nonselection_alpha=1, nonselection_color="green")
 
-    legend = Legend(
-        items=[("ONE", [online_asym_renderer]),
-               ("COG", [cog_asym_renderer])],
-        location=(0, 0), click_policy="hide")
+    x_one_asym_renderer = asym_fig.square('time', 'x_one_asym', source=data_source, name='x_one_asym',
+                                          color="black", nonselection_alpha=1, nonselection_color="black")
 
-    asym_fig.add_layout(legend, 'below')
+    x_cog_asym_renderer = asym_fig.square('time', 'x_cog_asym', source=data_source, name='x_cog_asym',
+                                          color="green", nonselection_alpha=1, nonselection_color="green")
+
+    pretty_names = {'y_one_asym': 'Y ONE', 'y_cog_asym': 'Y COG',
+                    'x_one_asym': 'X ONE', 'x_cog_asym': 'X COG'}
+
+    # Порядок точек/ошибок в обоих списках должен быть одинаков
+    asym_renders = [y_one_asym_renderer, y_cog_asym_renderer, x_one_asym_renderer, x_cog_asym_renderer]
+    asym_error_renders = [y_one_asym_error, y_cog_asym_error, x_one_asym_error, x_cog_asym_error]
+
+    for render, render_error in zip(asym_renders, asym_error_renders):
+        asym_fig.add_layout(render_error)
+        render.js_on_change('visible', CustomJS(args=dict(x=render_error), code="x.visible = cb_obj.visible"))
+
+    asym_fig.add_layout(Legend(items=[(pretty_names[r.name], [r]) for r in asym_renders], click_policy="hide",
+                               location="top_left", background_fill_alpha=0.2, orientation="horizontal"))
 
     # Вывод информации по точке при наведении мыши
 
     asym_fig.add_tools(HoverTool(
-        renderers=[online_asym_renderer],
+        renderers=asym_renders,
         formatters={"time": "datetime"},
-        tooltips=[("Тип", "ONE"), ("Время", "@time{%F %T}"),
-                  ("Деполяризатор", "@depol_energy"), ("y", "@y_online_asym")]))
-
-    asym_fig.add_tools(HoverTool(
-        renderers=[cog_asym_renderer],
-        formatters={"time": "datetime"},
-        tooltips=[("Тип", "COG"), ("Время", "@time{%F %T}"),
-                  ("Деполяризатор", "@depol_energy"), ("y", "@y_cog_asym")]))
+        mode='vline',
+        tooltips=[("Время", "@time{%F %T}"),
+                  *[(pretty_names[r.name], f"@{r.name}{'{0.000}'}") for r in asym_renders],
+                  ("Деполяризатор", "@depol_energy")]))
 
     # Окно ввода периода усреднения
     period_input = TextInput(value='300', title="Время усреднения (с):")
@@ -211,7 +220,7 @@ def app(doc):
 
     # Настраиваемый график
 
-    fig_names = [i + j for i in ["y_online", "y_cog"] for j in ['_l', '_r']]  # TODO: создать держатель имен графиков
+    fig_names = [i + j for i in ["y_one", "y_cog"] for j in ['_l', '_r']]  # TODO: создать держатель имен графиков
     fig_handler = []
 
     for fig_name in fig_names:
@@ -386,21 +395,19 @@ def app(doc):
             if float(depol_input.value) != depol_value:
                 depol_input.value = str(int(depol_value))
 
-    depol_start_stop_buttons.on_change("active",
-                                       lambda attr, old, new: (depolarizer.start_scan() if new == 0 else depolarizer.stop_scan()))
+    depol_start_stop_buttons.on_change(
+        "active", lambda attr, old, new: (depolarizer.start_scan() if new == 0 else depolarizer.stop_scan()))
 
     # Подгонка
 
-    fit_line_selection_widget = Select(title="Fitting line:", value="y_online_asym",
-                                       options=["y_online_asym", "y_cog_asym"],
-                                       width=200)
+    fit_line_selection_widget = Select(title="Fitting line:", width=200, value=asym_renders[0].name,
+                                       options=[(render.name, pretty_names[render.name]) for render in asym_renders])
 
     options = [name for name in fit.function_handler.keys()]
     if not options:
         raise IndexError("Пустой function_handler в fit.py")
 
-    fit_function_selection_widget = Select(title="Fitting function:", value=options[0],
-                                           options=options, width=200)
+    fit_function_selection_widget = Select(title="Fitting function:", value=options[0], options=options, width=200)
 
     fit_button = Button(label="FIT", width=200)
 
@@ -469,7 +476,7 @@ def app(doc):
 
         x_axis = data_source.data['time'][left_ind_:right_ind_]
         y_axis = data_source.data[line_name][left_ind_:right_ind_]
-        y_errors = data_source.data[line_name + '_up_error'][left_ind_:right_ind_] - data_source.data[line_name][left_ind_:right_ind_]
+        y_errors = data_source.data[line_name + '_up_error'][left_ind_:right_ind_] - y_axis
 
         init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
                      for name in fit_handler["input_fields"].keys()}
