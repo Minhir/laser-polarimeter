@@ -1,4 +1,3 @@
-import sys
 from Message_pb2 import *
 import socket
 import struct

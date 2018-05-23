@@ -15,6 +15,11 @@ void init()
     GEM_startOfRun();
 }
 
+void setReconstructionRegionX(float xmin, float xmax)
+{
+    GEM_setReconstructionRegionX(xmin, xmax);
+}
+
 std::vector<hit_struct> GEM_reco()
 {
     struct GEM_EventCount cnt;

@@ -1,5 +1,5 @@
 import bisect
-from math import log, floor
+from math import log, floor, hypot
 from threading import Lock
 
 import numpy_ringbuffer as ringbuffer
@@ -21,7 +21,7 @@ chunk = np.dtype([('time', np.float64),
                   ('charge', np.float32)])      # TODO: добавить частоту, ослбаление [дБ]
 
 
-names = ['time', 'depol_energy', 'charge']
+names = ['time', 'depol_energy', 'charge', 'delta_rate', 'delta_rate_up_error', 'delta_rate_down_error']
 
 for rate in ['rate', 'corrected_rate']:
     for type_ in ['_l', '_r']:
@@ -34,7 +34,7 @@ for axis in ['x_', 'y_']:
     for reco in ['one_', 'cog_']:
         for type_ in ['l', 'r', 'asym']:
             x_y_names.append(axis + reco + type_)
-            for error_ in ['', '_up_error', '_down_error']:
+            for error_ in ['', '_up_error', '_down_error', '_error']:
                 names.append(axis + reco + type_ + error_)
 
 
@@ -184,6 +184,13 @@ class ChunkStorage:
                 points['corrected_rate' + type_ + '_down_error'].append(corrected_rate - corrected_rate_error)
                 points['corrected_rate' + type_ + '_up_error'].append(corrected_rate + corrected_rate_error)
 
+            delta_rate = points['corrected_rate_l'][-1] - points['corrected_rate_r'][-1]
+            delta_rate_error = hypot(points['corrected_rate_l_up_error'][-1] - points['corrected_rate_l'][-1],
+                                     points['corrected_rate_r_up_error'][-1] - points['corrected_rate_r'][-1])
+            points['delta_rate'].append(delta_rate)
+            points['delta_rate_up_error'].append(delta_rate + delta_rate_error)
+            points['delta_rate_down_error'].append(delta_rate - delta_rate_error)
+
             for name in x_y_names:
                 data_len_ = data_len - np.isnan(data[name]).sum()  # Вычел из длины количество nan'ов
                 mean = bn.nanmean(data[name])
@@ -191,6 +198,7 @@ class ChunkStorage:
                 points[name].append(mean)
                 points[name + '_down_error'].append(mean - error)
                 points[name + '_up_error'].append(mean + error)
+                points[name + '_error'].append(error)
 
             points['time'].append(time_from - period / 2)
             points['charge'].append(data['charge'].mean())

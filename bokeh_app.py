@@ -168,7 +168,8 @@ def app(doc):
         formatters={"time": "datetime"},
         mode='vline',
         tooltips=[("Время", "@time{%F %T}"),
-                  *[(pretty_names[r.name], f"@{r.name}{'{0.000}'}") for r in asym_renders],
+                  *[(pretty_names[r.name], f"@{r.name}{'{0.000}'} ± @{r.name + '_error'}{'{0.000}'}")
+                    for r in asym_renders],
                   ("Деполяризатор", "@depol_energy")]))
 
     # Окно ввода периода усреднения
@@ -218,73 +219,58 @@ def app(doc):
 
     period_input.on_change('value', change_period)
 
-    # Настраиваемый график
+    # Создание панели графиков (вкладок)
 
-    fig_names = [i + j for i in ["y_one", "y_cog"] for j in ['_l', '_r']]  # TODO: создать держатель имен графиков
-    fig_handler = []
+    def create_fig(fig_names: list, colors: list, ers: str=None):
+        """Создаёт график data_names : time. Если в data_names несколько имён,
+        то они будут на одном графике. Возвращает fig.
 
-    for fig_name in fig_names:
+        :param fig_names: список с именами полей данных из data_storage
+        :param colors: список цветов, соотв. элементам из fig_names
+        :param ers: 'err', 'pretty' --- вид усов (у данных должны быть поля '_up_error', '_down_error'),
+                       'err' --- усы обыкновенные
+                       'pretty' --- усы без шляпки и цветом совпадающим с цветом точки
+        :return fig --- Bokeh figure
+        """
+
+        if len(fig_names) != len(colors):
+            raise IndexError('Кол-во цветов и графиков не совпадает')
+
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
                      active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
-        fig.add_layout(Whisker(source=data_source, base="time",
-                               upper=fig_name + '_up_error',
-                               lower=fig_name + '_down_error'))
+        for fig_name, color in zip(fig_names, colors):
 
-        fig.circle('time', fig_name, source=data_source, size=5, color="black",
-                   nonselection_alpha=1, nonselection_color="black")
-        fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"
-        fig.xaxis[0].axis_label = 'Время'
-        fig.xaxis[0].formatter = datetime_formatter
-        fig.x_range = asym_fig.x_range
-        fig_handler.append((fig, fig_name))
+            if ers == 'err':
+                fig.add_layout(
+                    Whisker(source=data_source, base="time", upper=fig_name+'_up_error', lower=fig_name+'_down_error'))
+            elif ers == 'pretty':
+                fig.add_layout(
+                    Whisker(source=data_source, base="time", upper=fig_name+'_up_error', lower=fig_name+'_down_error',
+                            line_color=color, lower_head=None, upper_head=None))
 
-    for fig_name in ["rate", "corrected_rate"]:
-        fig = figure(plot_width=width_, plot_height=height_,
-                     tools="box_zoom, wheel_zoom, pan, save, reset",
-                     active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
+            fig.circle('time', fig_name, source=data_source, size=5, color=color,
+                       nonselection_alpha=1, nonselection_color=color)
+            fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"  # TODO: создать легенду
+            fig.xaxis[0].axis_label = 'Время'               # TODO: отвязать от обращения к индексам осей
+            fig.xaxis[0].formatter = datetime_formatter
+            fig.x_range = asym_fig.x_range
 
-        fig_name_l = fig_name + "_l"
-        fig_name_r = fig_name + "_r"
-        fig.add_layout(Whisker(source=data_source, base="time",
-                               upper=fig_name_l + '_up_error',
-                               lower=fig_name_l + '_down_error', line_color='blue',
-                               lower_head=None, upper_head=None))
+        return fig
 
-        fig.add_layout(Whisker(source=data_source, base="time",
-                       upper=fig_name_r + '_up_error',
-                       lower=fig_name_r + '_down_error', line_color='red',
-                       lower_head=None, upper_head=None))
+    figs = [
+        (create_fig(['y_one_l'], ['black'], 'err'), 'Y ONE L'),
+        (create_fig(['y_one_r'], ['black'], 'err'), 'Y ONE R'),
+        (create_fig(['y_cog_l'], ['black'], 'err'), 'Y COG L'),
+        (create_fig(['y_cog_r'], ['black'], 'err'), 'Y COG R'),
+        (create_fig(['rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'pretty'), 'Rate'),
+        (create_fig(['corrected_rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'pretty'), 'Corr. rate'),
+        (create_fig(['delta_rate'], ['black'], 'err'), 'Delta corr. rate'),
+        (create_fig(['charge'], ['blue']), 'Charge')
+    ]
 
-        fig.circle('time', fig_name_l, source=data_source, size=5, color="blue",
-                   nonselection_alpha=1, nonselection_color="blue")
-
-        fig.circle('time', fig_name_r, source=data_source, size=5, color="red",
-                   nonselection_alpha=1, nonselection_color="red")
-
-        fig.yaxis[0].axis_label = f"<{fig_name}>"
-        fig.xaxis[0].axis_label = 'Время'
-        fig.xaxis[0].formatter = datetime_formatter
-        fig.x_range = asym_fig.x_range
-        fig_handler.append((fig, fig_name))
-
-    fig = figure(plot_width=width_, plot_height=height_,
-                 tools="box_zoom, wheel_zoom, pan, save, reset",
-                 active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
-
-    fig.circle('time', "charge", source=data_source, size=5, color="blue",
-               nonselection_alpha=1, nonselection_color="blue")
-
-    fig.yaxis[0].axis_label = "Заряд"
-    fig.xaxis[0].axis_label = 'Время'
-    fig.xaxis[0].formatter = datetime_formatter
-    fig.x_range = asym_fig.x_range
-
-    fig_handler.append((fig, 'charge'))
-
-    # Вкладки графика
-    tab_handler = Tabs(tabs=[Panel(child=fig, title=fig_name) for fig, fig_name in fig_handler], width=width_)
+    tab_handler = Tabs(tabs=[Panel(child=fig, title=fig_name) for fig, fig_name in figs], width=width_)
 
     # Окно статуса деполяризатора
 

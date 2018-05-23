@@ -14,6 +14,7 @@ struct hit_struct
     int polarity;
 };
 
+void setReconstructionRegionX(float xmin, float xmax);
 
 void init();
 

@@ -29,8 +29,8 @@ def read_hitdump():
         file_path = dir_ + '/' + file
         if file_pattern.match(file) and os.path.isfile(file_path):
             print(f'Read {file_path}...')
-            with open(file_path) as file:
-                for line in file.readlines():
+            with open(file_path) as f:
+                for line in f.readlines():
                     time, _, det_number, pol, x, y, *_ = map(float, line.split())
                     if det_number == 2:
                         data.append(HItStruct(time=time, pol=int(pol), x=x, y=y))
