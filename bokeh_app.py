@@ -27,6 +27,7 @@ def app(doc):
     utc_plus_7h = 7 * 3600
     time_coef = 10**3  # Пересчёт времени в мс для формата datetime Bokeh
     fit_line_points_amount = 300
+    depol_list = []
 
     datetime_formatter = DatetimeTickFormatter(
         milliseconds=['%M:%S:%3Nms'],
@@ -182,8 +183,6 @@ def app(doc):
     # Глобальный список параметров, для сохранения результатов запросов к data_storage
     params = {'last_time': 0, 'period': int(period_input.value)}
 
-    depol_list = []
-
     def update_data():
         """
         Обновляет данные для пользовательского интерфейса, собирая их у data_storage
@@ -197,6 +196,9 @@ def app(doc):
             depol_list.clear()
 
         points, params['last_time'] = data_storage_.get_mean_from(params['last_time'], params['period'])
+
+        if not points['time']:
+            return
 
         points['time'] = [(i + utc_plus_7h) * time_coef for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
 
