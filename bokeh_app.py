@@ -22,8 +22,7 @@ def app(doc):
 
     # вспомогательные глобальные
 
-    data_names = names
-    data_source = ColumnDataSource({key: [] for key in data_names})
+    data_source = ColumnDataSource({key: [] for key in names})
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     utc_plus_7h = 7 * 3600
     time_coef = 10**3  # Пересчёт времени в мс для формата datetime Bokeh
@@ -123,36 +122,41 @@ def app(doc):
 
     data_source.on_change('selected', draw_selected_area)
 
-    y_one_asym_error = Whisker(source=data_source, base="time",
-                               upper="y_one_asym_up_error", lower="y_one_asym_down_error")
+    def create_whisker(data_name: str):
+        """ Создает усы для data_name от time
 
-    y_cog_asym_error = Whisker(source=data_source, base="time",
-                               upper="y_cog_asym_up_error", lower="y_cog_asym_down_error")
+        :param data_name: имя поля данных из data_storage
+                (у данных должны быть поля '_up_error', '_down_error')
+        :return: Bokeh Whisker
+        """
+        return Whisker(source=data_source, base="time", upper=data_name+"_up_error", lower=data_name+"_down_error")
 
-    x_one_asym_error = Whisker(source=data_source, base="time",
-                               upper="x_one_asym_up_error", lower="x_one_asym_down_error")
+    def create_render(data_name: str, glyph: str, color: str):
+        """ Рисует data_name от time
 
-    x_cog_asym_error = Whisker(source=data_source, base="time",
-                               upper="x_cog_asym_up_error", lower="x_cog_asym_down_error")
+        :param data_name: имя поля данных из data_storage
+        :param glyph: ['circle', 'square']
+        :param color: цвет
+        :return: Bokeh fig
+        """
+        if glyph == 'circle':
+            func = asym_fig.circle
+        elif glyph == 'square':
+            func = asym_fig.square
+        else:
+            raise ValueError('Неверное значение glyph')
+        return func('time', data_name, source=data_source, name=data_name, color=color,
+                    nonselection_alpha=1, nonselection_color=color)
 
-    y_one_asym_renderer = asym_fig.circle('time', 'y_one_asym', source=data_source, name='y_one_asym',
-                                          color="black", nonselection_alpha=1, nonselection_color="black")
+    # Список линий на графике асимметрии: data_name, name, glyph, color
+    asym_renders_name = [('y_one_asym', 'Y ONE', 'circle', 'black'),
+                         ('y_cog_asym', 'Y COG', 'circle', 'green'),
+                         ('x_one_asym', 'X ONE', 'square', 'black'),
+                         ('x_cog_asym', 'X COG', 'square', 'black')]
 
-    y_cog_asym_renderer = asym_fig.circle('time', 'y_cog_asym', source=data_source, name='y_cog_asym',
-                                          color="green", nonselection_alpha=1, nonselection_color="green")
-
-    x_one_asym_renderer = asym_fig.square('time', 'x_one_asym', source=data_source, name='x_one_asym',
-                                          color="black", nonselection_alpha=1, nonselection_color="black")
-
-    x_cog_asym_renderer = asym_fig.square('time', 'x_cog_asym', source=data_source, name='x_cog_asym',
-                                          color="green", nonselection_alpha=1, nonselection_color="green")
-
-    pretty_names = {'y_one_asym': 'Y ONE', 'y_cog_asym': 'Y COG',
-                    'x_one_asym': 'X ONE', 'x_cog_asym': 'X COG'}
-
-    # Порядок точек/ошибок в обоих списках должен быть одинаков
-    asym_renders = [y_one_asym_renderer, y_cog_asym_renderer, x_one_asym_renderer, x_cog_asym_renderer]
-    asym_error_renders = [y_one_asym_error, y_cog_asym_error, x_one_asym_error, x_cog_asym_error]
+    pretty_names = dict([(data_name, name) for data_name, name, *_ in asym_renders_name])
+    asym_renders = [create_render(data_name, glyph, color) for data_name, _, glyph, color in asym_renders_name]
+    asym_error_renders = [create_whisker(data_name) for data_name, *_ in asym_renders_name]
 
     for render, render_error in zip(asym_renders, asym_error_renders):
         asym_fig.add_layout(render_error)
@@ -185,7 +189,7 @@ def app(doc):
         Обновляет данные для пользовательского интерфейса, собирая их у data_storage
         """
         if params['period'] != int(period_input.value):
-            data_source.data = {name: [] for name in data_names}
+            data_source.data = {name: [] for name in names}
             params['period'] = int(period_input.value)
             params['last_time'] = 0
             depol_axis.ticker.ticks.clear()
@@ -221,26 +225,27 @@ def app(doc):
 
     # Создание панели графиков (вкладок)
 
-    def create_fig(fig_names: list, colors: list, ers: str=None):
+    def create_fig(data_names: list, colors: list, y_axis_name: str, ers: str=None):
         """Создаёт график data_names : time. Если в data_names несколько имён,
         то они будут на одном графике. Возвращает fig.
 
-        :param fig_names: список с именами полей данных из data_storage
+        :param data_names: список с именами полей данных из data_storage
         :param colors: список цветов, соотв. элементам из fig_names
+        :param y_axis_name: имя оси Y
         :param ers: 'err', 'pretty' --- вид усов (у данных должны быть поля '_up_error', '_down_error'),
                        'err' --- усы обыкновенные
                        'pretty' --- усы без шляпки и цветом совпадающим с цветом точки
         :return fig --- Bokeh figure
         """
 
-        if len(fig_names) != len(colors):
+        if len(data_names) != len(colors):
             raise IndexError('Кол-во цветов и графиков не совпадает')
 
         fig = figure(plot_width=width_, plot_height=height_,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
                      active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
-        for fig_name, color in zip(fig_names, colors):
+        for fig_name, color in zip(data_names, colors):
 
             if ers == 'err':
                 fig.add_layout(
@@ -252,22 +257,23 @@ def app(doc):
 
             fig.circle('time', fig_name, source=data_source, size=5, color=color,
                        nonselection_alpha=1, nonselection_color=color)
-            fig.yaxis[0].axis_label = f"<{fig_name}> [мм]"  # TODO: создать легенду
-            fig.xaxis[0].axis_label = 'Время'               # TODO: отвязать от обращения к индексам осей
-            fig.xaxis[0].formatter = datetime_formatter
-            fig.x_range = asym_fig.x_range
+
+        fig.yaxis.axis_label = y_axis_name
+        fig.xaxis.axis_label = 'Время'
+        fig.xaxis.formatter = datetime_formatter
+        fig.x_range = asym_fig.x_range
 
         return fig
 
     figs = [
-        (create_fig(['y_one_l'], ['black'], 'err'), 'Y ONE L'),
-        (create_fig(['y_one_r'], ['black'], 'err'), 'Y ONE R'),
-        (create_fig(['y_cog_l'], ['black'], 'err'), 'Y COG L'),
-        (create_fig(['y_cog_r'], ['black'], 'err'), 'Y COG R'),
-        (create_fig(['rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'pretty'), 'Rate'),
-        (create_fig(['corrected_rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'pretty'), 'Corr. rate'),
-        (create_fig(['delta_rate'], ['black'], 'err'), 'Delta corr. rate'),
-        (create_fig(['charge'], ['blue']), 'Charge')
+        (create_fig(['y_one_l'], ['black'], 'Y [мм]', 'err'), 'Y ONE L'),
+        (create_fig(['y_one_r'], ['black'], 'Y [мм]', 'err'), 'Y ONE R'),
+        (create_fig(['y_cog_l'], ['black'], 'Y [мм]', 'err'), 'Y COG L'),
+        (create_fig(['y_cog_r'], ['black'], 'Y [мм]', 'err'), 'Y COG R'),
+        (create_fig(['rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'Усл. ед.', 'pretty'), 'Rate'),
+        (create_fig(['corrected_rate' + i for i in ['_l', '_r']], ['red', 'blue'], 'Усл. ед.', 'pretty'), 'Corr. rate'),
+        (create_fig(['delta_rate'], ['black'], 'Корр. лев. - корр. пр.', 'err'), 'Delta corr. rate'),
+        (create_fig(['charge'], ['blue'], 'Ед.'), 'Charge')
     ]
 
     tab_handler = Tabs(tabs=[Panel(child=fig, title=fig_name) for fig, fig_name in figs], width=width_)
