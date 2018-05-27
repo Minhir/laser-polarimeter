@@ -22,10 +22,26 @@ class GenericChi2:
         s = (f_res - self.y) / self.y_err
         return bn.ss(s)
 
+#heaviside function (Step)
+def H(x):
+    if x<0:
+        return 0
+    else
+        return 1
+
+def polarization_segment(t, Pmax, P0, tau)
+    return H(t)*( P0 + (Pmax-P0)*(1-exp(-t/tau)))
+
 
 def polarization(P0, Pmax, tau, t):
     return P0 + (Pmax-P0)*(1.0 - exp(- t/tau))
 
+def npol(t, Pmax, P0,  tds, Ps):
+    p = polarization_segment(t, Pmax, P0,tau)
+    for i in range(0, len(tds)):
+        p = p*H(tds[i]-t)
+        p = p + polarization_segment(t-tds[i], Pmax, Ps[i],tau)
+    return p
 
 def const(time, p0=0):
     return p0
@@ -49,12 +65,20 @@ def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
     return polarization(P2, Pmax, tau, time - depol_time)
 
+def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.05, T=300):
+    tau0 = 1540/E**5.0*3600
+    tau = P/0.13*tau0
+    p = polarization_segment(time, P, P0)*H(depol_time-time)
+    P2 = polarization_segment(depol_time, P, P0,tau) + DELTA
+    p = p + polarization_segment(time-depol_time, P2, P0, tau)
+
 
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
 # Первый аргумент всегда time
 function_handler = {"exp_jump": exp_jump,
                     "const": const,
-                    "linear": linear}
+                    "linear": linear,
+                    "tied_exp_jump" : tied_exp_jump}
 
 
 def get_function_params(name):
