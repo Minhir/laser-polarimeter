@@ -153,7 +153,7 @@ def app(doc):
     asym_renders_name = [('y_one_asym', 'Y ONE', 'circle', 'black'),
                          ('y_cog_asym', 'Y COG', 'circle', 'green'),
                          ('x_one_asym', 'X ONE', 'square', 'black'),
-                         ('x_cog_asym', 'X COG', 'square', 'black')]
+                         ('x_cog_asym', 'X COG', 'square', 'green')]
 
     pretty_names = dict([(data_name, name) for data_name, name, *_ in asym_renders_name])
     asym_renders = [create_render(data_name, glyph, color) for data_name, _, glyph, color in asym_renders_name]
@@ -202,13 +202,13 @@ def app(doc):
 
         points['time'] = [(i + utc_plus_7h) * time_coef for i in points['time']]  # Учёт сдвижки UTC+7 для отрисовки
 
-        for i, time in enumerate(points['time']):
-            if points['depol_energy'][i] == 0:
+        for time, energy in zip(points['time'], points['depol_energy']):
+            if energy == 0:
                 continue
-            depol_axis.major_label_overrides[time] = str(points['depol_energy'][i])
+            depol_axis.major_label_overrides[time] = str(energy)
             depol_list.append(time)
 
-        depol_axis.ticker = depol_list
+        depol_axis.ticker = depol_list      # TODO: оптимизировать
         data_source.stream({key: np.array(val) for key, val in points.items()}, rollover=250)
 
     def change_period(attr, old, new):
