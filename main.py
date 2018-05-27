@@ -1,3 +1,4 @@
+#!/usr/local/bin/python3
 from bokeh_app import app
 from bokeh.server.server import Server as BokehServer
 from GEM_handler import GEM_handler
