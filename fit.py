@@ -22,26 +22,27 @@ class GenericChi2:
         s = (f_res - self.y) / self.y_err
         return bn.ss(s)
 
-#heaviside function (Step)
-def H(x):
-    if x<0:
-        return 0
-    else
-        return 1
 
-def polarization_segment(t, Pmax, P0, tau)
-    return H(t)*( P0 + (Pmax-P0)*(1-exp(-t/tau)))
+def H(x):
+    """Heaviside function (Step)"""
+    return 0 if x < 0 else 1
+
+
+def polarization_segment(t, Pmax, P0, tau):
+    return H(t) * (P0 + (Pmax - P0) * (1 - exp(-t/tau)))
 
 
 def polarization(P0, Pmax, tau, t):
-    return P0 + (Pmax-P0)*(1.0 - exp(- t/tau))
+    return P0 + (Pmax-P0) * (1 - exp(- t/tau))
 
-def npol(t, Pmax, P0,  tds, Ps):
-    p = polarization_segment(t, Pmax, P0,tau)
-    for i in range(0, len(tds)):
-        p = p*H(tds[i]-t)
-        p = p + polarization_segment(t-tds[i], Pmax, Ps[i],tau)
+
+def npol(t, Pmax, P0, tds, Ps):
+    p = polarization_segment(t, Pmax, P0, tau)  # TODO: задать tau
+    for tds_i, Ps_i in zip(tds, Ps):
+        p *= H(tds_i - t)
+        p += polarization_segment(t - tds_i, Pmax, Ps_i, tau)
     return p
+
 
 def const(time, p0=0):
     return p0
@@ -65,12 +66,14 @@ def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
     return polarization(P2, Pmax, tau, time - depol_time)
 
+
 def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.05, T=300):
-    tau0 = 1540/E**5.0*3600
-    tau = P/0.13*tau0
-    p = polarization_segment(time, P, P0)*H(depol_time-time)
-    P2 = polarization_segment(depol_time, P, P0,tau) + DELTA
-    p = p + polarization_segment(time-depol_time, P2, P0, tau)
+    tau0 = 1540 / E**5 * 3600
+    tau = P / Pmax * tau0
+    p = polarization_segment(time, P, P0, tau) * H(depol_time - time)
+    p2 = polarization_segment(depol_time, P, P0,tau) + DELTA
+    p += polarization_segment(time - depol_time, p2, P0, tau)
+    return p  # TODO: проверить
 
 
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
