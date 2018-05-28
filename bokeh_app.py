@@ -1,7 +1,7 @@
 import bisect
 from math import pi
 
-from bokeh.layouts import row, column, WidgetBox
+from bokeh.layouts import row, column, WidgetBox, gridplot, layout
 from bokeh.plotting import figure
 from bokeh.models import (ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend,
                           Label, DataRange1d)
@@ -150,10 +150,10 @@ def app(doc):
                     nonselection_alpha=1, nonselection_color=color)
 
     # Список линий на графике асимметрии: data_name, name, glyph, color
-    asym_renders_name = [('y_one_asym', 'Y ONE', 'circle', 'black'),
-                         ('y_cog_asym', 'Y COG', 'circle', 'green'),
-                         ('x_one_asym', 'X ONE', 'square', 'black'),
-                         ('x_cog_asym', 'X COG', 'square', 'green')]
+    asym_renders_name = [('y_one_asym', 'ΔY ONE', 'circle', 'black'),
+                         ('y_cog_asym', 'ΔY COG', 'circle', 'green'),
+                         ('x_one_asym', 'ΔX ONE', 'square', 'black'),
+                         ('x_cog_asym', 'ΔX COG', 'square', 'green')]
 
     pretty_names = dict([(data_name, name) for data_name, name, *_ in asym_renders_name])
     asym_renders = [create_render(data_name, glyph, color) for data_name, _, glyph, color in asym_renders_name]
@@ -191,7 +191,7 @@ def app(doc):
             data_source.data = {name: [] for name in names}
             params['period'] = int(period_input.value)
             params['last_time'] = 0
-            depol_axis.ticker.ticks.clear()
+            depol_axis.ticker = []
             depol_axis.major_label_overrides.clear()
             depol_list.clear()
 
@@ -517,7 +517,7 @@ def app(doc):
     fit_button.on_click(fit_callback)
 
     # Инициализация bokeh app, расположение виджетов
-    column_1 = column(tab_handler, asym_fig, period_input, width=width_ + 50)
+    column_1 = column(gridplot([tab_handler], [asym_fig], merge_tools=False), period_input, width=width_ + 50)
     widgets_ = WidgetBox(depol_start_stop_buttons,
                          depol_input_harmonic_number, depol_input_attenuation, depol_input_speed,
                          depol_input_step, depol_input_initial,
@@ -541,7 +541,7 @@ def app(doc):
 
     row_22 = row(column_21, column_22)
     column_2 = column(row_21, row_22, width=width_ + 50)
-    layout_ = row(column_1, column_2)
+    layout_ = layout([[column_1, column_2]])
 
     # Настройка документа Bokeh
 
