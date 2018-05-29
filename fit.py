@@ -54,12 +54,12 @@ def linear(time, a=0, b=0):
 
 def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
-    if time < depol_time - T / 2:
+    if time < depol_time - T/2:
         return polarization(P0, Pmax, tau, time)
 
     P1 = polarization(P0, Pmax, tau, depol_time)  # polarization before jump
 
-    P2 = 0 if DELTA == -100 else P1 + DELTA
+    P2 = 0 if DELTA == -100 else P1 + DELTA  # -100 -- магическое число, чтобы принудительно занулить p2
 
     if time < depol_time + T / 2:
         return P1 + (P2 - P1) * (time - depol_time + T / 2) / T
@@ -73,7 +73,7 @@ def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.
     p = polarization_segment(time, P, P0, tau) * H(depol_time - time)
     p2 = polarization_segment(depol_time, P, P0,tau) + DELTA
     p += polarization_segment(time - depol_time, p2, P0, tau)
-    return p  # TODO: проверить
+    return p
 
 
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!

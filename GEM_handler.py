@@ -5,17 +5,18 @@ from itertools import chain
 import numpy as np
 
 import cpp.GEM as GEM
-from data_storage import hist_storage_, data_storage_
 from config import config
 from hit_dump_parser import read_hitdump
 
 
 class GEM_handler(threading.Thread):
 
-    def __init__(self, sleeping_time=1):
+    def __init__(self, hist_storage_, data_storage_, sleeping_time=1):
         """
         Получает данные от GEM, усредняет их и складывает их в data_storage
 
+        :param экземпляр hist_storage_
+        :param экземпляп data_storage_
         :param sleeping_time: интервал между опросами детектора
         """
         threading.Thread.__init__(self, name='GEM_handler')
@@ -26,6 +27,8 @@ class GEM_handler(threading.Thread):
         self.delta_time = config.delta_time
         self.X = config.GEM_X
         self.Y = config.GEM_Y
+        self.hist_storage_ = hist_storage_
+        self.data_storage_ = data_storage_
 
     def get_data(self):
         if config.read_hitdump:
@@ -35,7 +38,7 @@ class GEM_handler(threading.Thread):
         else:
             data = self.GEM.GEM_reco()
 
-        hist_storage_.add_as_GEM_struct_array(data)
+        self.hist_storage_.add_as_GEM_struct_array(data)
 
         if len(data) == 0:
             return
@@ -82,7 +85,7 @@ class GEM_handler(threading.Thread):
                         if counter_r == 0:
                             counter_r = np.nan
 
-                        data_storage_.add((self.start_time + self.delta_time / 2,
+                        self.data_storage_.add((self.start_time + self.delta_time / 2,
                                            x_online_l / counter_l, y_online_l / counter_l,
                                            x_online_r / counter_r, y_online_r / counter_r,
                                            x_cog_l    / counter_l, y_cog_l    / counter_l,

@@ -7,7 +7,6 @@ import numpy as np
 import bottleneck as bn
 
 from config import config
-from depolarizer import depolarizer
 from file_io import file_io
 
 chunk = np.dtype([('time', np.float64),
@@ -38,12 +37,15 @@ for axis in ['x_', 'y_']:
                 names.append(axis + reco + type_ + error_)
 
 
-if not config.read_hitdump:
-    print("Читаю старые данные...")
-    init_data = file_io.read_from_file()
-    print("Данные прочитаны")
-else:
-    init_data = {}
+def get_init_data():
+    """Читает данные из файлов"""
+    if not config.read_hitdump:
+        print("Читаю старые данные...")
+        init_data = file_io.read_from_file()
+        print("Данные прочитаны")
+    else:
+        init_data = {}
+    return init_data
 
 
 class FreqMap:
@@ -53,6 +55,7 @@ class FreqMap:
         Хранит карту частот
 
         :param buffer_len: кол-во хранимых точек
+        :param init_data: данные для инициализации
         """
         self.buffer_len = buffer_len
         self.freq_data_ = ringbuffer.RingBuffer(self.buffer_len)
@@ -77,21 +80,23 @@ class FreqMap:
         return 0 if ind == -1 else self.freq_data_[ind]
 
 
-freq_storage_ = FreqMap(config.asym_buffer_len, init_data)
-
-
 class ChunkStorage:
 
-    def __init__(self, buffer_len, init_data):
+    def __init__(self, buffer_len, init_data, depolarizer, freq_storage_):
         """
         Хранит точки асимметрии
 
         :param buffer_len: кол-во хранимых точек
+        :param init_data: данные для инициализации
+        :param depolarizer: экземпляр деполяризатора
+        :param freq_storage_: экземпляр freq_storage_
         """
         self.buffer_len = buffer_len
         self.lock = Lock()
         self.data_ = ringbuffer.RingBuffer(self.buffer_len, dtype=chunk)
         self.time_data_ = ringbuffer.RingBuffer(self.buffer_len)  # Аналог self.data_['time'], только в np.array.
+        self.depolarizer = depolarizer
+        self.freq_storage_ = freq_storage_
         if 'asym_data' in init_data:
             for data in init_data['asym_data']:
                 self.data_.append(data)
@@ -205,8 +210,8 @@ class ChunkStorage:
 
             # подшивка точки деполяризатора
 
-            freq = freq_storage_.find_closest_freq(time_from - period / 2)
-            energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
+            freq = self.freq_storage_.find_closest_freq(time_from - period / 2)
+            energy = self.depolarizer.frequency_to_energy(freq) if freq != 0 else 0
             points['depol_energy'].append(round(energy, 3))
 
         return points, time_from
@@ -284,9 +289,3 @@ class HistStorage:
     def get_events_sum(self):
         """Возвращает количество событий"""
         return np.sum(self.hists_)
-
-
-data_storage_ = ChunkStorage(config.asym_buffer_len, init_data)
-hist_storage_ = HistStorage(config.GEM_X, config.GEM_Y, config.hist_buffer_len)
-
-del init_data

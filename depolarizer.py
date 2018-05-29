@@ -5,10 +5,6 @@ import time
 from threading import Thread, Lock
 import bisect
 
-try:
-    import data_storage
-except:
-    data_storage = None
 
 # some helper function to send and receive message
 
@@ -34,11 +30,12 @@ def receive(sock):
 
 class Depolarizer:
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, freq_storage_=None):
         self.host = host
         self.port = port
         self.sock = socket.socket()
         self.sock.connect((host, port))
+        self.freq_storage_ = freq_storage_
         self.fmap_thread = None
         self.update_thread = None
         self.message_id = 0
@@ -236,8 +233,8 @@ class Depolarizer:
             while self.is_fmap:
                 m = receive(sock)
                 for fm in m.fmap.frequency:
-                    if data_storage is not None:
-                        data_storage.freq_storage_.add(fm.timestamp*1e-9, fm.frequency)
+                    if self.freq_storage_ is not None:
+                        self.freq_storage_.add(fm.timestamp*1e-9, fm.frequency)
                     else:
                         self.fmap.append((fm.timestamp*1e-9, fm.frequency))
         self.is_fmap = False
@@ -330,16 +327,3 @@ class FakeDepolarizer:
 
     def __setattr__(self, attr, *val):
         pass
-
-
-if sys.version[0] == '2':
-    ConnectionRefusedError = Exception
-
-try:
-    depolarizer = Depolarizer('192.168.176.61', 9090)
-    depolarizer.start_fmap()
-    depolarizer.start_update()
-except ConnectionRefusedError as e:
-    print(e)
-    print("Unable to connect to depolarizer")
-    depolarizer = FakeDepolarizer()

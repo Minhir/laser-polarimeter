@@ -11,14 +11,12 @@ from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
 from bokeh.models.formatters import DatetimeTickFormatter, FuncTickFormatter
 import numpy as np
 
-from data_storage import hist_storage_, data_storage_, names, freq_storage_
-from depolarizer import depolarizer
 from config import config
 import cpp.GEM as GEM
 import fit
 
 
-def app(doc):
+def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
     # вспомогательные глобальные
 
@@ -75,6 +73,7 @@ def app(doc):
                       active_scroll="wheel_zoom", active_drag="pan", toolbar_location="below",
                       lod_threshold=100, x_axis_location=None, x_range=DataRange1d())
 
+    asym_fig.yaxis.axis_label = "мм"
     asym_fig.extra_x_ranges = {"time_range": asym_fig.x_range,
                                "depolarizer": asym_fig.x_range,
                                "sec": asym_fig.x_range}
@@ -175,7 +174,7 @@ def app(doc):
         tooltips=[("Время", "@time{%F %T}"),
                   *[(pretty_names[r.name], f"@{r.name}{'{0.000}'} ± @{r.name + '_error'}{'{0.000}'}")
                     for r in asym_renders],
-                  ("Деполяризатор", "@depol_energy")]))
+                  ("Деполяризатор", f"@depol_energy{'{0.000}'}")]))
 
     # Окно ввода периода усреднения
     period_input = TextInput(value='300', title="Время усреднения (с):")
@@ -506,7 +505,7 @@ def app(doc):
         for param in params_:
             fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
             if param['name'] == "depol_time":
-                freq = freq_storage_.find_closest_freq(param['value'] + left_time_)
+                freq = freq_storage_.find_closest_freq(param['value'] + left_time_ / time_coef - utc_plus_7h)
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
