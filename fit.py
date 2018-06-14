@@ -58,13 +58,15 @@ def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
         return polarization(P0, Pmax, tau, time)
 
     P1 = polarization(P0, Pmax, tau, depol_time)  # polarization before jump
+    P2 = P1 + DELTA
 
-    P2 = 0 if DELTA == -100 else P1 + DELTA  # -100 -- магическое число, чтобы принудительно занулить p2
+    if time > depol_time + T/2:
+        return polarization(P2, Pmax, tau, time - depol_time)
 
-    if time < depol_time + T / 2:
-        return P1 + (P2 - P1) * (time - depol_time + T / 2) / T
+    P1T = polarization(P0, Pmax, tau, depol_time - T/2)
+    P2T = polarization(P2, Pmax, tau, T/2)
 
-    return polarization(P2, Pmax, tau, time - depol_time)
+    return P1T - (P1T - P2T) * (time - (depol_time - T/2)) / T
 
 
 def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.05, T=300):
@@ -75,6 +77,8 @@ def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.
     p += polarization_segment(time - depol_time, p2, P0, tau)
     return p
 
+# TODO: функцию N прыжков
+# TODO: привязка T к времени усреднения
 
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
 # Первый аргумент всегда time
