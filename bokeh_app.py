@@ -517,7 +517,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_error = depolarizer.frequency_to_energy(freq_error, depolarizer._F0, 0)
                 #energy_window.text = f"<p>Частота: {freq} +- {freq_error}, энергия: {energy}</p>"
-                energy_window.text = "<p>Частота: %8.1f +- %.1f, \n Энергия: %7.3f +- %.1f</p>" % (freq, freq_error, energy, energy_error)
+                energy_window.text = "<p>Частота: %8.1f +- %.1f Hz,</p> <p>Энергия: %7.3f +- %.1f МэВ</p>" % (freq, freq_error, energy, energy_error)
 
         fit_handler["fit_line"] = asym_fig.line(fit_line_real_x_axis,
                                                 fit.get_line(name, fit_line_x_axis, [x['value'] for x in params_]),
