@@ -57,6 +57,10 @@ class Depolarizer:
         self.revolution_frequency = self.get_revolution_frequency()
         self.state = self.get_state()
         self.current_frequency = self.get_current_frequency()
+        if self.current_frequency == 0:
+            self.current_energy = 0
+        else
+            self.current_energy =self.frequency_to_energy(self.current_frequency)
 
     def send(self, message):
         with lock_send:
@@ -297,6 +301,10 @@ class Depolarizer:
             # self.state = self.get_state()
             self.get_is_scan()
             self.get_current_frequency()
+            if self.current_frequency == 0:
+                self.current_energy = 0
+            else
+                self.current_energy =self.frequency_to_energy(self.current_frequency)
 
     def get_by_name(self, name):
         if name in self.__dict__:

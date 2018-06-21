@@ -369,7 +369,8 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         depol_status_window.text = f"""
 <p>Сканирование: 
 <font color={'"green">включено' if depolarizer.is_scan else '"red">выключено'}</font></p>
-<p/>Частота {"%.1f" % depolarizer.current_frequency} (Гц)</p>"""
+<p/>Частота {"%.1f" % depolarizer.current_frequency} (Гц)</p>
+<p/>Энергия {"%.3f" % depolarizer.current_energy} МэВ</p>"""
 
         for value_name in ['speed', 'step']:
             depol_input, _ = depol_dict[value_name]
