@@ -515,7 +515,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
                 freq_error = 0
                 freq_error = abs(depolarizer.speed*param['error'])
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
-                energy_error = depolarizer.frequency_to_energy(freq_error, depolarizer.f0, 0)
+                energy_error = depolarizer.frequency_to_energy(freq_error, depolarizer._F0, 0)
                 #energy_window.text = f"<p>Частота: {freq} +- {freq_error}, энергия: {energy}</p>"
                 energy_window.text = "<p>Частота: %8.1f +- %.1f, \n Энергия: %7.3f +- %.1f</p>" % (freq, freq_error, energy, energy_error)
 
