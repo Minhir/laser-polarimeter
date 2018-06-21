@@ -52,6 +52,16 @@ def linear(time, a=0, b=0):
     return a * time + b
 
 
+
+
+def linear_jump(time, depol_time=50, A=0, DELTA=0, K1=0, K2=0, T=1):
+    t = time - depol_time
+    if t <=0 : return A+K1*(t-T/2.)
+    if t >= T :  return A+DELTA +K2*(t-T/2.)
+    return A+DELTA*t/T + (K2*t*t - K1*(T-t)*(T-t))/2./T
+
+
+
 def exp_jump(time, depol_time=50, P0=0, Pmax=-10, tau=14, DELTA=10, T=1):
 
     if time < depol_time - T/2:
@@ -83,6 +93,7 @@ def tied_exp_jump(time, depol_time=0, P0=0, Pmax=0.13, E=4.12, P=0.05, DELTA=-0.
 # Хранит функции подгонки. У функции обязательно должны быть начальные значения параметров!
 # Первый аргумент всегда time
 function_handler = {"exp_jump": exp_jump,
+                    "linear_jump" : linear_jump,
                     "const": const,
                     "linear": linear,
                     "tied_exp_jump" : tied_exp_jump}
