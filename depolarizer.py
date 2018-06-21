@@ -19,13 +19,15 @@ def send(sock, message):
 
 
 def receive(sock):
-    data = sock.recv(4)
-    s = struct.unpack('I', data)
-    data = sock.recv(s[0])
-    m = Message()
-    m.ParseFromString(data)
-    return m
-
+    while True:
+        try:
+            data = sock.recv(4)
+            s = struct.unpack('I', data)
+            data = sock.recv(s[0])
+            m = Message()
+            m.ParseFromString(data)
+            return m
+        except google.protobuf.message.DecodeError: pass
 
 class Depolarizer:
 
