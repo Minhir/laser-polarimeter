@@ -10,14 +10,16 @@ import GEM_handler
 from config import config
 
 
+if sys.version[0] == '2':
+    ConnectionRefusedError = Exception
+
+
 def main():
     # freq storage
     init_data = data_storage.get_init_data()
     freq_storage_ = data_storage.FreqMap(config.asym_buffer_len, init_data)
 
     # depolarizer
-    if sys.version[0] == '2':
-        ConnectionRefusedError = Exception
     try:
         depolarizer_ = depolarizer.Depolarizer('192.168.176.61', 9090, freq_storage_)
         depolarizer_.start_fmap()

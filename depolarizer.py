@@ -21,7 +21,6 @@ def send(sock, message):
 def receive(sock):
     data = sock.recv(4)
     s = struct.unpack('I', data)
-    # print "message size = ",s[0]
     data = sock.recv(s[0])
     m = Message()
     m.ParseFromString(data)
@@ -260,7 +259,7 @@ class Depolarizer:
         for time_, freq in self.fmap:
             print(time_, "   ", freq)
 
-    def frequency_to_energy(self, f, f0=None, n=None):
+    def frequency_to_energy(self, f, f0=None, n=None):  #  TODO: сделать функцию static чтобы работала при отключенном деполяризаторе
         if f0 is None:
             f0 = self._F0
         if n is None:
@@ -323,6 +322,15 @@ class FakeDepolarizer:
             return 0
         elif attr == "fmap":
             return []
+        elif attr == "frequency_to_energy":
+            def frequency_to_energy(f, f0=None, n=None):  # TODO: костыль, убрать отсюда
+                if f0 is None:
+                    f0 = 818924.144144
+                if n is None:
+                    n = 9  # TODO: писать n в таблицу на жесткий диск!
+                return (f / f0 + n) * 440.6484586602595
+            return frequency_to_energy
+
         return MayBeCalled()
 
     def __setattr__(self, attr, *val):

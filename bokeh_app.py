@@ -4,8 +4,9 @@ from math import pi
 from bokeh.layouts import row, column, WidgetBox, gridplot, layout
 from bokeh.plotting import figure
 from bokeh.models import (ColumnDataSource, Whisker, LinearAxis, HoverTool, BoxSelectTool, BoxAnnotation, Legend,
-                          Label, DataRange1d)
+                          Label, DataRange1d, Span)
 from bokeh.models.callbacks import CustomJS
+from bokeh.events import DoubleTap
 from bokeh.models.widgets import RangeSlider, Div, Button, TextInput, Panel, Tabs, RadioButtonGroup
 from bokeh.models.widgets import Select, Paragraph, CheckboxGroup
 from bokeh.models.formatters import DatetimeTickFormatter, FuncTickFormatter
@@ -43,7 +44,6 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     hist_source = ColumnDataSource(data=dict(image=[img]))
     width_ = config.GEM_X * 5
     hist_height_ = config.GEM_Y * 5
-    height_ = 300
     hist_fig = figure(plot_width=width_, plot_height=hist_height_,
                       x_range=(0, config.GEM_X), y_range=(0, config.GEM_Y))
 
@@ -68,7 +68,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
     # График асимметрии
 
-    asym_fig = figure(plot_width=width_, plot_height=height_ + 100,
+    asym_fig = figure(plot_width=width_, plot_height=400,
                       tools="box_zoom, xbox_select, wheel_zoom, pan, save, reset",
                       active_scroll="wheel_zoom", active_drag="pan", toolbar_location="below",
                       lod_threshold=100, x_axis_location=None, x_range=DataRange1d())
@@ -81,13 +81,25 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     depol_axis = LinearAxis(x_range_name="depolarizer", axis_label='Деполяризатор',
                             major_label_overrides={}, major_label_orientation=pi/2)
 
-    sec_axis = LinearAxis(x_range_name='sec', axis_label='Секунды', visible=False)  # Секундная ось при подгонке
-
     asym_fig.add_layout(LinearAxis(x_range_name="time_range", axis_label='Время',
                                    formatter=datetime_formatter), 'below')
 
+    zone_of_interest = Span(location=0,
+                            dimension='height', line_color='green',
+                            line_dash='dashed', line_width=3)
+
+    sec_axis = LinearAxis(x_range_name='sec', axis_label='Секунды')  # Секундная ось сверху (настр. диапазон)
+    sec_axis.formatter = FuncTickFormatter(
+        code=f"return ((tick - {zone_of_interest.location}) / {time_coef}).toFixed(1);")
+
+    def double_tap(event):
+        zone_of_interest.location = event.x
+        sec_axis.formatter = FuncTickFormatter(code=f"return ((tick - {event.x}) / {time_coef}).toFixed(1);")
+
     asym_fig.add_layout(depol_axis, 'below')
     asym_fig.add_layout(sec_axis, 'above')
+    asym_fig.add_layout(zone_of_interest)
+    asym_fig.on_event(DoubleTap, double_tap)
 
     def draw_selected_area(attr, old, new):
         """Подсветка выделенной для подгонки области"""
@@ -103,19 +115,12 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
             if left_time_ != right_time_:
                 fit_handler["fit_indices"] = (left_time_, right_time_)
 
-        if not fit_handler["fit_indices"]:
-            sec_axis.visible = False
-            return
-
         asym_fig_box_select = BoxAnnotation(left=left_time_,
                                             name="fit_zone",
                                             right=right_time_,
                                             fill_alpha=0.1, fill_color='red')
 
         asym_fig.add_layout(asym_fig_box_select)
-        sec_axis.bounds = (left_time_, right_time_)
-        sec_axis.formatter = FuncTickFormatter(code=f"return ((tick - {left_time_}) / {time_coef}).toFixed(1);")
-        sec_axis.visible = True
 
     asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
     asym_box_select_overlay.line_color = "firebrick"
@@ -242,7 +247,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         if len(data_names) != len(colors):
             raise IndexError('Кол-во цветов и графиков не совпадает')
 
-        fig = figure(plot_width=width_, plot_height=height_,
+        fig = figure(plot_width=width_, plot_height=300,
                      tools="box_zoom, wheel_zoom, pan, save, reset",
                      active_scroll="wheel_zoom", lod_threshold=100, x_axis_type="datetime")
 
@@ -404,7 +409,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
     fit_button = Button(label="FIT", width=200)
 
-    def make_parameters_table(attr, old, new):      # TODO: перенести на JavaScript
+    def make_parameters_table(attr, old, new):
         """Создание поля ввода данных для подгонки: начальное значение, fix и т.д."""
         name = fit_function_selection_widget.value
 
@@ -488,14 +493,15 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         kwargs.update(limit_vals)
 
         # Предобработка времени, перевод в секунды, вычитание сдвига (для лучшей подгонки)
-        x_time = x_axis - left_time_  # Привёл время в интервал от 0
+        left_ = zone_of_interest.location
+        x_time = x_axis - left_  # Привёл время в интервал от 0
         x_time /= time_coef             # Перевёл в секунды
 
         # Создание точек, которые передадутся в подогнанную функцию с параметрами,
         # и точек, которые соответсвуют реальным временам на графике (т.е. без смещения к 0)
 
         fit_line_real_x_axis = np.linspace(left_time_, right_time_, fit_line_points_amount)
-        fit_line_x_axis = fit_line_real_x_axis - left_time_
+        fit_line_x_axis = fit_line_real_x_axis - left_
         fit_line_x_axis /= time_coef
 
         m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
@@ -505,7 +511,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         for param in params_:
             fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
             if param['name'] == "depol_time":
-                freq = freq_storage_.find_closest_freq(param['value'] + left_time_ / time_coef - utc_plus_7h)
+                freq = freq_storage_.find_closest_freq(param['value'] + left_ / time_coef - utc_plus_7h)
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_window.text = f"<p>Частота: {freq}, энергия: {energy}</p>"
 
