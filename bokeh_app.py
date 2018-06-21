@@ -513,10 +513,11 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
             if param['name'] == "depol_time":
                 freq = freq_storage_.find_closest_freq(param['value'] + left_ / time_coef - utc_plus_7h)
                 freq_error = 0
-                #freq_error = abs(Depolarizer.speed*param['error'])
+                freq_error = abs(depolarizer.speed*param['error'])
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
+                energy_error = depolarizer.frequency_to_energy(freq_error, depolarizer.f0, 0)
                 #energy_window.text = f"<p>Частота: {freq} +- {freq_error}, энергия: {energy}</p>"
-                energy_window.text = "<p>Частота: %8.1f +- %.1f, энергия: %7.3f +- %.1f</p>" % (freq, freq_error, energy, 0)
+                energy_window.text = "<p>Частота: %8.1f +- %.1f, \n Энергия: %7.3f +- %.1f</p>" % (freq, freq_error, energy, energy_error)
 
         fit_handler["fit_line"] = asym_fig.line(fit_line_real_x_axis,
                                                 fit.get_line(name, fit_line_x_axis, [x['value'] for x in params_]),
