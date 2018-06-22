@@ -410,7 +410,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
     fit_button = Button(label="FIT", width=200)
 
-    def make_parameters_table(attr, old, new):
+    def make_parameters_table():
         """Создание поля ввода данных для подгонки: начальное значение, fix и т.д."""
         name = fit_function_selection_widget.value
 
@@ -432,7 +432,8 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
             fit_handler["input_fields"][param]["fix"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
             fit_handler["input_fields"][param]["Init value"] = TextInput(width=t_width,
                                                                          height=t_height, value=str(value))
-            fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width, height=t_height)
+            fit_handler["input_fields"][param]["step (error)"] = TextInput(width=t_width,
+                                                                           height=t_height, value='1')
             fit_handler["input_fields"][param]["limits"] = CheckboxGroup(labels=[""], width=t_width, height=t_height)
             fit_handler["input_fields"][param]["lower_limit"] = TextInput(width=t_width, height=t_height)
             fit_handler["input_fields"][param]["upper_limit"] = TextInput(width=t_width, height=t_height)
@@ -477,19 +478,20 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         y_axis = data_source.data[line_name][left_ind_:right_ind_]
         y_errors = data_source.data[line_name + '_up_error'][left_ind_:right_ind_] - y_axis
 
-        init_vals = {name: float(fit_handler["input_fields"][name]["Init value"].value)
-                     for name in fit_handler["input_fields"].keys()}
+        init_vals = {name: float(val["Init value"].value)
+                     for name, val in fit_handler["input_fields"].items()}
 
-        fix_vals = {"fix_" + name: True for name in fit_handler["input_fields"].keys()
-                    if fit_handler["input_fields"][name]["fix"].active}
+        steps = {"error_" + name: float(val["step (error)"].value)
+                 for name, val in fit_handler["input_fields"].items()}
 
-        limit_vals = {"limit_" + name: (float(fit_handler["input_fields"][name]["lower_limit"].value),
-                                        float(fit_handler["input_fields"][name]["upper_limit"].value))
-                      for name in fit_handler["input_fields"].keys()
-                      if fit_handler["input_fields"][name]["limits"].active}
+        fix_vals = {"fix_" + name: True for name, val in fit_handler["input_fields"].items() if val["fix"].active}
+
+        limit_vals = {"limit_" + name: (float(val["lower_limit"].value), float(val["upper_limit"].value))
+                      for name, val in fit_handler["input_fields"].items() if val["limits"].active}
 
         kwargs = {}
         kwargs.update(init_vals)
+        kwargs.update(steps)
         kwargs.update(fix_vals)
         kwargs.update(limit_vals)
 
@@ -511,13 +513,12 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         params_ = m.get_param_states()
         for param in params_:
             fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
+            fit_handler["input_fields"][param['name']]["step (error)"].value = str(param['error'])
             if param['name'] == "depol_time":
                 freq = freq_storage_.find_closest_freq(param['value'] + left_ / time_coef - utc_plus_7h)
-                freq_error = 0
                 freq_error = abs(depolarizer.speed*param['error'])
                 energy = depolarizer.frequency_to_energy(freq) if freq != 0 else 0
                 energy_error = depolarizer.frequency_to_energy(freq_error, depolarizer._F0, 0)
-                #energy_window.text = f"<p>Частота: {freq} +- {freq_error}, энергия: {energy}</p>"
                 energy_window.text = "<p>Частота: %8.1f +- %.1f Hz,</p> <p>Энергия: %7.3f +- %.1f МэВ</p>" % (freq, freq_error, energy, energy_error)
 
         fit_handler["fit_line"] = asym_fig.line(fit_line_real_x_axis,
@@ -537,15 +538,15 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     column_21 = column(widgets_)
     if config.GEM_idle:
         column_22 = column(fit_button, clear_fit_button, fake_depol_button, fit_line_selection_widget,
-                           fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
+                           fit_function_selection_widget, energy_window, make_parameters_table())
         make_parameters_table_id = 6
     else:
         column_22 = column(fit_button, clear_fit_button, fit_line_selection_widget,
-                           fit_function_selection_widget, energy_window, make_parameters_table(None, None, None))
+                           fit_function_selection_widget, energy_window, make_parameters_table())
         make_parameters_table_id = 5
 
     def rebuild_table(attr, old, new):
-        column_22.children[make_parameters_table_id] = make_parameters_table(None, None, None)
+        column_22.children[make_parameters_table_id] = make_parameters_table()
 
     fit_function_selection_widget.on_change("value", rebuild_table)
 

@@ -52,8 +52,6 @@ def linear(time, a=0, b=0):
     return a * time + b
 
 
-
-
 def linear_jump(time, depol_time=50, A=0, DELTA=0, K1=0, K2=0, T=1):
     t = time - depol_time
     if t <=0 : return A+K1*(t-T/2.)
