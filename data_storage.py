@@ -101,12 +101,6 @@ class ChunkStorage:
             for data in init_data['asym_data']:
                 self.data_.append(data)
                 self.time_data_.append(data['time'])
-        # self._test_full()
-
-    def _test_full(self):
-        st = self.data_[0]
-        for i in range(self.buffer_len):
-            self.data_.append(st)
 
     def add(self, chunk_):
         """
@@ -131,7 +125,7 @@ class ChunkStorage:
         :param period: период усреднения (сек)
         :param time_to: при None считает до самого большого времени (сек)
         :return: points, time_from -- список с усреднёнными данными,
-        метка времени, на которой закончилось усреднение
+                 метка времени, на которой закончилось усреднение
         """
         points = {key: [] for key in names}
 

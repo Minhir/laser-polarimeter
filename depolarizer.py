@@ -304,7 +304,7 @@ class Depolarizer:
             if self.current_frequency == 0:
                 self.current_energy = 0
             else:
-                self.current_energy =self.frequency_to_energy(self.current_frequency)
+                self.current_energy = self.frequency_to_energy(self.current_frequency)
 
     def get_by_name(self, name):
         if name in self.__dict__:

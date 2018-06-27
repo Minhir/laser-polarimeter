@@ -14,12 +14,13 @@ class FileIO (threading.Thread):
     def __init__(self):
         """
         Читает/записывает данные.
-        Формат: папка dd.mm.yy = '%d.%m.%y'
+        Формат: папка dir_format= "%y.%m.%d"
         Файлы: hh_mm_ss.npz
         """
         threading.Thread.__init__(self, name='FileIO thread')
         self.file_pattern = re.compile("^[0-2][0-9]_[0-6][0-9]_[0-6][0-9]\.npz$")
         self.dir_patter = re.compile("^[0-3][0-9]\.[0-1][0-9]\.[0-9][0-9]$")
+        self.dir_format = "%y.%m.%d"
         self.dir_ = "data"
         if not os.path.isdir(self.dir_):
             os.mkdir(self.dir_)
@@ -37,7 +38,7 @@ class FileIO (threading.Thread):
         yesterday = today - datetime.timedelta(days=1)
 
         for day in [yesterday, today]:
-            dir_name = day.strftime('%d.%m.%y')
+            dir_name = day.strftime(self.dir_format)
             dir_path = self.dir_ + '/' + dir_name
             if not self.dir_patter.match(dir_name) or not os.path.isdir(dir_path):
                 continue
@@ -67,7 +68,7 @@ class FileIO (threading.Thread):
         if not self.asym_data_buffer:
             return
 
-        today = datetime.date.today().strftime('%d.%m.%y')
+        today = datetime.date.today().strftime(self.dir_format)
         if not os.path.isdir(self.dir_ + '/' + today):
             os.mkdir(self.dir_ + '/' + today)
 

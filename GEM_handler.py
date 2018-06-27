@@ -55,6 +55,7 @@ class GEM_handler(threading.Thread):
 
         while self.start_time + self.delta_time < first_data_time:
             self.start_time += self.delta_time
+
         for hit_struct in chain(self.buf, data):
             if self.start_time < end_time:
                 if hit_struct.timestamp < self.start_time + self.delta_time:

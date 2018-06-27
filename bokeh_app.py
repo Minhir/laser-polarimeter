@@ -506,8 +506,8 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         fit.fit(m)
         params_ = m.get_param_states()
         for param in params_:
-            fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
-            fit_handler["input_fields"][param['name']]["step (error)"].value = str(param['error'])
+            fit_handler["input_fields"][param['name']]["Init value"].value = "%.3f" % param['value']
+            fit_handler["input_fields"][param['name']]["step (error)"].value = "%.3f" % param['error']
             if param['name'] == "depol_time":
                 freq = freq_storage_.find_closest_freq(param['value'] + left_ / time_coef - utc_plus_7h)
                 freq_error = abs(depolarizer.speed*param['error'])
