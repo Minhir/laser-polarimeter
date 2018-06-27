@@ -25,7 +25,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     fit_handler = {"fit_line": None, "input_fields": {}, "fit_indices": tuple()}
     utc_plus_7h = 7 * 3600
     time_coef = 10**3  # Пересчёт времени в мс для формата datetime Bokeh
-    fit_line_points_amount = 300
+    fit_line_points_amount = 300  # Количество точек для отрисовки подгоночной кривой
     depol_list = []
 
     datetime_formatter = DatetimeTickFormatter(
@@ -84,6 +84,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     asym_fig.add_layout(LinearAxis(x_range_name="time_range", axis_label='Время',
                                    formatter=datetime_formatter), 'below')
 
+    # Прямая, с которой идёт отсчёт времени для подгонки
     zone_of_interest = Span(location=0,
                             dimension='height', line_color='green',
                             line_dash='dashed', line_width=3)
@@ -93,6 +94,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         code=f"return ((tick - {zone_of_interest.location}) / {time_coef}).toFixed(1);")
 
     def double_tap(event):
+        """Двойной клик для перемещения отсчёта времени для подгонки"""
         zone_of_interest.location = event.x
         sec_axis.formatter = FuncTickFormatter(code=f"return ((tick - {event.x}) / {time_coef}).toFixed(1);")
 
@@ -106,21 +108,18 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
         # Удаляет предыдущую выделенную область
         asym_fig.renderers = [r for r in asym_fig.renderers if r.name != 'fit_zone']
-        fit_handler["fit_indices"] = tuple()
 
-        if new.indices:
-            left_time_ = data_source.data['time'][min(new.indices)]
-            right_time_ = data_source.data['time'][max(new.indices)]
+        if not new.indices:
+            fit_handler["fit_indices"] = tuple()
+            return
 
-            if left_time_ != right_time_:
-                fit_handler["fit_indices"] = (left_time_, right_time_)
+        l_time_ = data_source.data['time'][min(new.indices)]
+        r_time_ = data_source.data['time'][max(new.indices)]
 
-        asym_fig_box_select = BoxAnnotation(left=left_time_,
-                                            name="fit_zone",
-                                            right=right_time_,
-                                            fill_alpha=0.1, fill_color='red')
-
-        asym_fig.add_layout(asym_fig_box_select)
+        if l_time_ != r_time_:
+            fit_handler["fit_indices"] = (l_time_, r_time_)
+            box_select = BoxAnnotation(left=l_time_, right=r_time_, name="fit_zone", fill_alpha=0.1, fill_color='red')
+            asym_fig.add_layout(box_select)
 
     asym_box_select_overlay = asym_fig.select_one(BoxSelectTool).overlay
     asym_box_select_overlay.line_color = "firebrick"
@@ -170,16 +169,18 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     asym_fig.add_layout(Legend(items=[(pretty_names[r.name], [r]) for r in asym_renders], click_policy="hide",
                                location="top_left", background_fill_alpha=0.2, orientation="horizontal"))
 
-    # Вывод информации по точке при наведении мыши
-
-    asym_fig.add_tools(HoverTool(
-        renderers=asym_renders,
-        formatters={"time": "datetime"},
-        mode='vline',
-        tooltips=[("Время", "@time{%F %T}"),
-                  *[(pretty_names[r.name], f"@{r.name}{'{0.000}'} ± @{r.name + '_error'}{'{0.000}'}")
-                    for r in asym_renders],
-                  ("Деполяризатор", f"@depol_energy{'{0.000}'}")]))
+    # Вывод информации о точке при наведении мыши
+    asym_fig.add_tools(
+        HoverTool(
+            renderers=asym_renders,
+            formatters={"time": "datetime"},
+            mode='vline',
+            tooltips=[("Время", "@time{%F %T}"),
+                      *[(pretty_names[r.name], f"@{r.name}{'{0.000}'} ± @{r.name + '_error'}{'{0.000}'}")
+                        for r in asym_renders],
+                      ("Деполяризатор", f"@depol_energy{'{0.000}'}")]
+        )
+    )
 
     # Окно ввода периода усреднения
     period_input = TextInput(value='300', title="Время усреднения (с):")
@@ -215,19 +216,12 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
         depol_axis.ticker = depol_list      # TODO: оптимизировать
         data_source.stream({key: np.array(val) for key, val in points.items()}, rollover=250)
 
-    def change_period(attr, old, new):
-        if old == new:
-            return
-        try:
-            val = int(new)
-            if not (0 < val < config.asym_buffer_len):
-                raise ValueError("Некорректное значение")
-
-        except ValueError as e:
+    def period_correction_func(attr, old, new):
+        """Проверка введенного значения на целое число больше нуля"""
+        if not new.isdigit() or int(new) <= 0:
             period_input.value = old
-            print(e)
 
-    period_input.on_change('value', change_period)
+    period_input.on_change('value', period_correction_func)
 
     # Создание панели графиков (вкладок)
 
@@ -364,7 +358,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
     def update_depol_status():  # TODO: самому пересчитывать начало и конец сканирования по частотам
         """Обновляет статус деполяризатора,
         если какое-то значение поменялось другим пользователем"""
-        depol_start_stop_buttons.active = (0 if depolarizer.is_scan else 1)
+        depol_start_stop_buttons.active = 0 if depolarizer.is_scan else 1
 
         depol_status_window.text = f"""
 <p>Сканирование: 
@@ -509,7 +503,7 @@ def app(doc, hist_storage_, data_storage_, freq_storage_, depolarizer, names):
 
         m = fit.create_fit_func(name, x_time, y_axis, y_errors, kwargs)
 
-        fit.fit(m)  # TODO: в отдельный поток?
+        fit.fit(m)
         params_ = m.get_param_states()
         for param in params_:
             fit_handler["input_fields"][param['name']]["Init value"].value = str(param['value'])
